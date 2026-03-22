@@ -1,0 +1,9 @@
+{
+  "name": "github-actions-workflow-spec-guidance",
+  "description": "既存 GitHub Actions workflow を観測し、Markdown 仕様書へ整理するプラグイン。",
+  "version": "0.2.0",
+  "skills": [
+    "./skills/github-actions-workflow-spec-guidance/"
+  ],
+  "agents": []
+}

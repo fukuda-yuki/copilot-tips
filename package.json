@@ -1,0 +1,11 @@
+{
+  "name": "awesome-copilot-ja-dotnet-mvc",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm run plugin:validate && npm run plugin:generate-marketplace",
+    "plugin:generate-marketplace": "node eng/generate-marketplace.mjs",
+    "plugin:materialize": "node eng/materialize-plugins.mjs",
+    "plugin:validate": "node eng/validate-plugins.mjs"
+  }
+}

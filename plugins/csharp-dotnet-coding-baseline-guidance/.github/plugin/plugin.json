@@ -1,0 +1,9 @@
+{
+  "name": "csharp-dotnet-coding-baseline-guidance",
+  "description": "C# / .NET の日常実装で、命名、非同期、例外、DI、層分離の基準線を日本語で揃えるプラグイン。",
+  "version": "0.1.0",
+  "skills": [
+    "./skills/csharp-dotnet-coding-baseline-guidance/"
+  ],
+  "agents": []
+}

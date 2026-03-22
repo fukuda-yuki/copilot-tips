@@ -1,0 +1,9 @@
+{
+  "name": "github-actions-delivery-policy-guidance",
+  "description": "GitHub Actions の deploy、promotion、environment、rollback policy を日本語で整理するプラグイン。",
+  "version": "0.1.0",
+  "skills": [
+    "./skills/github-actions-delivery-policy-guidance/"
+  ],
+  "agents": []
+}

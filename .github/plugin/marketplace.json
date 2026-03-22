@@ -1,0 +1,82 @@
+{
+  "name": "awesome-copilot-ja-dotnet-mvc",
+  "metadata": {
+    "description": "GitHub Copilot starter、仕様駆動ワークフロー、C# / .NET 設計、テスト品質、ASP.NET Core MVC 移行、GitHub Actions guidance をまとめた日本語プラグインマーケットプレイス。",
+    "version": "0.9.0",
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "description": "ASP.NET Core MVC の画面設計、Controller / ViewModel 分離、POST-Redirect-GET、入力再表示を日本語で整理するプラグイン。",
+      "name": "aspnetcore-mvc-app-guidance",
+      "source": "aspnetcore-mvc-app-guidance",
+      "version": "0.1.0"
+    },
+    {
+      "description": "ASP.NET Core MVC の unit test、integration test、Playwright E2E の分担と selector 方針を日本語で整理するプラグイン。",
+      "name": "aspnetcore-mvc-test-strategy-guidance",
+      "source": "aspnetcore-mvc-test-strategy-guidance",
+      "version": "0.1.0"
+    },
+    {
+      "description": "behavior source、failure mode、characterization と TDD の区別を軸にテスト integrity を整理する日本語プラグイン。",
+      "name": "behavior-first-test-integrity-guidance",
+      "source": "behavior-first-test-integrity-guidance",
+      "version": "0.1.0"
+    },
+    {
+      "description": "C# / .NET の設計、性能、セキュリティ、EF Core 例外判断を日本語で深く整理するプラグイン。",
+      "name": "csharp-dotnet-architecture-expert-guidance",
+      "source": "csharp-dotnet-architecture-expert-guidance",
+      "version": "0.1.0"
+    },
+    {
+      "description": "C# / .NET の日常実装で、命名、非同期、例外、DI、層分離の基準線を日本語で揃えるプラグイン。",
+      "name": "csharp-dotnet-coding-baseline-guidance",
+      "source": "csharp-dotnet-coding-baseline-guidance",
+      "version": "0.1.0"
+    },
+    {
+      "description": "GitHub Copilot の custom agent を日本語で設計し、下書きし、見直すためのプラグイン。",
+      "name": "custom-agent-creator-guidance",
+      "source": "custom-agent-creator-guidance",
+      "version": "0.2.0"
+    },
+    {
+      "description": "WebForms / WinForms から ASP.NET Core MVC へ移る案件で、vertical slice 実装と質問主導 mentoring をまとめて支援するプラグイン。",
+      "name": "dotnet-modernization-guidance",
+      "source": "dotnet-modernization-guidance",
+      "version": "0.1.0"
+    },
+    {
+      "description": "GitHub Actions で `.NET test` と Playwright を段階的に回す CI を日本語で整理するプラグイン。",
+      "name": "dotnet-playwright-ci-guidance",
+      "source": "dotnet-playwright-ci-guidance",
+      "version": "0.1.0"
+    },
+    {
+      "description": "GitHub Actions の deploy、promotion、environment、rollback policy を日本語で整理するプラグイン。",
+      "name": "github-actions-delivery-policy-guidance",
+      "source": "github-actions-delivery-policy-guidance",
+      "version": "0.1.0"
+    },
+    {
+      "description": "既存 GitHub Actions workflow を観測し、Markdown 仕様書へ整理するプラグイン。",
+      "name": "github-actions-workflow-spec-guidance",
+      "source": "github-actions-workflow-spec-guidance",
+      "version": "0.2.0"
+    },
+    {
+      "description": "GitHub Copilot 向けの instructions、agents、memory-bank の最小セットを small step で導入するプラグイン。",
+      "name": "github-copilot-repo-bootstrap-guidance",
+      "source": "github-copilot-repo-bootstrap-guidance",
+      "version": "0.1.0"
+    },
+    {
+      "description": "`memory-bank/spec.md` `plan.md` `task.md` を shared source of truth として継続運用するプラグイン。",
+      "name": "memory-bank-shared-workflow-guidance",
+      "source": "memory-bank-shared-workflow-guidance",
+      "version": "0.1.0"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "csharp-dotnet-architecture-expert-guidance",
+  "description": "C# / .NET の設計、性能、セキュリティ、EF Core 例外判断を日本語で深く整理するプラグイン。",
+  "version": "0.1.0",
+  "skills": [
+    "./skills/csharp-dotnet-architecture-expert-guidance/"
+  ],
+  "agents": [
+    "./agents/csharp-dotnet-expert.md"
+  ]
+}

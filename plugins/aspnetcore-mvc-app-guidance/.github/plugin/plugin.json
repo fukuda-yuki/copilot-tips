@@ -1,0 +1,11 @@
+{
+  "name": "aspnetcore-mvc-app-guidance",
+  "description": "ASP.NET Core MVC の画面設計、Controller / ViewModel 分離、POST-Redirect-GET、入力再表示を日本語で整理するプラグイン。",
+  "version": "0.1.0",
+  "skills": [
+    "./skills/aspnetcore-mvc-app-guidance/"
+  ],
+  "agents": [
+    "./agents/aspnetcore-mvc-guide.md"
+  ]
+}

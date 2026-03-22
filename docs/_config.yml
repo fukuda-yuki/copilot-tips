@@ -1,0 +1,21 @@
+title: Awesome Copilot JA for .NET MVC
+description: GitHub Copilot 向けの agents / skills / instructions / plugins を日本語で整理した docs hub
+remote_theme: just-the-docs/just-the-docs@v0.10.1
+plugins:
+  - jekyll-remote-theme
+  - jekyll-seo-tag
+
+url: https://fukuda-yuki.github.io
+baseurl: /awesome-copilot-ja-dotnet-mvc
+
+search_enabled: true
+heading_anchors: true
+back_to_top: true
+back_to_top_text: Back to top
+
+aux_links:
+  GitHub:
+    - https://github.com/FUKUDA-YUKI/awesome-copilot-ja-dotnet-mvc
+
+color_scheme: light
+footer_content: "docs は discovery hub、実体の source of truth は repo root の agents / skills / instructions です。"

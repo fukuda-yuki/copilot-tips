@@ -1,0 +1,11 @@
+{
+  "name": "behavior-first-test-integrity-guidance",
+  "description": "behavior source、failure mode、characterization と TDD の区別を軸にテスト integrity を整理する日本語プラグイン。",
+  "version": "0.1.0",
+  "skills": [
+    "./skills/behavior-first-test-integrity-guidance/"
+  ],
+  "agents": [
+    "./agents/polyglot-test-agent.md"
+  ]
+}
