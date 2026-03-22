@@ -1,0 +1,9 @@
+{
+  "name": "aspnetcore-mvc-test-strategy-guidance",
+  "description": "ASP.NET Core MVC の unit test、integration test、Playwright E2E の分担と selector 方針を日本語で整理するプラグイン。",
+  "version": "0.1.0",
+  "skills": [
+    "./skills/aspnetcore-mvc-test-strategy-guidance/"
+  ],
+  "agents": []
+}

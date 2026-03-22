@@ -1,0 +1,9 @@
+{
+  "name": "dotnet-playwright-ci-guidance",
+  "description": "GitHub Actions で `.NET test` と Playwright を段階的に回す CI を日本語で整理するプラグイン。",
+  "version": "0.1.0",
+  "skills": [
+    "./skills/dotnet-playwright-ci-guidance/"
+  ],
+  "agents": []
+}

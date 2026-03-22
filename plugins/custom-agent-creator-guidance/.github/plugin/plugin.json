@@ -1,0 +1,9 @@
+{
+  "name": "custom-agent-creator-guidance",
+  "description": "GitHub Copilot の custom agent を日本語で設計し、下書きし、見直すためのプラグイン。",
+  "version": "0.2.0",
+  "skills": [],
+  "agents": [
+    "./agents/custom-agent-creator.md"
+  ]
+}

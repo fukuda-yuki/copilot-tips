@@ -1,0 +1,9 @@
+{
+  "name": "github-copilot-repo-bootstrap-guidance",
+  "description": "GitHub Copilot 向けの instructions、agents、memory-bank の最小セットを small step で導入するプラグイン。",
+  "version": "0.1.0",
+  "skills": [
+    "./skills/github-copilot-repo-bootstrap-guidance/"
+  ],
+  "agents": []
+}

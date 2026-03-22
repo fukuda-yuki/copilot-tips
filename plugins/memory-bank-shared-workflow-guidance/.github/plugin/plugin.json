@@ -1,0 +1,9 @@
+{
+  "name": "memory-bank-shared-workflow-guidance",
+  "description": "`memory-bank/spec.md` `plan.md` `task.md` を shared source of truth として継続運用するプラグイン。",
+  "version": "0.1.0",
+  "skills": [
+    "./skills/memory-bank-shared-workflow-guidance/"
+  ],
+  "agents": []
+}
