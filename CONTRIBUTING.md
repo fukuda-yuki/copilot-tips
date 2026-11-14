@@ -109,7 +109,7 @@ Skill の一覧と、Skill ごとのいいね・感想・入れ方を GitHub Pag
 2. その日の値を `board-data` ブランチの `history.json` に残す。リアクションには日時が無く、後から推移を出すにはこの記録が要るため (いまのページでは使っていない)。`board-data` は Actions だけが更新する
 3. `eng/board.mjs` が `skills/` と `plugins/` を読んで、一覧と Skill ごとのページを `dist/board/` に生成し、Pages に公開する
 
-Skill のページでは、[giscus](https://giscus.app/ja) (Discussions を埋め込む無料の部品) でページから離れずにいいねと感想を送れます。リポジトリに [giscus の GitHub App](https://github.com/apps/giscus) を入れておく必要があります。入っていない、または読み込めないときは、感想スレッドへのリンクと、集計時点の感想の転載に切り替わります。
+いいねと感想は GitHub の感想スレッドで受け付け、ページからはそこへリンクします。ページ内で送れるようにするには訪問者の GitHub トークンを発行する秘密鍵つきのサーバーか第三者の GitHub App が要るので、採っていません。外部のスクリプトを読み込まないことはテストが確かめます。
 
 Skill と感想スレッドの対応は、スレッド本文の先頭にある `<!-- copilot-tips-board skill: <skill-name> -->` で取ります。スレッドのタイトルやカテゴリを変えても対応は崩れません。この行は消さないでください。本文の文面 (`eng/board-collect.mjs` の `discussionBody`) は新しく作るスレッドにだけ使われます。Actions の権限では既存のスレッドを書き換えられないので、文面を変えたら既存のスレッドはメンテナーが手で直します。目印は誰でも書けるので、Actions かメンテナー (owner / member / collaborator) が立てたスレッドだけを採用します。作成者は、Skill を同梱するプラグインの `plugin.json` の `author` を出します。インストールのコマンドは README.md の「インストール」と同じもので、ずれるとテストが失敗します。
 

@@ -73,15 +73,15 @@ test("表の説明は最初の 1 文にして、長ければ切る", () => {
 });
 
 test("一覧と Skill ごとのページを生成する", () => {
-  const files = renderBoard({ skills: boardSkills(fixture()), stats: { ...stats, repoId: "R1" } });
+  const files = renderBoard({ skills: boardSkills(fixture()), stats });
   assert.deepEqual(Object.keys(files).sort(), ["board.js", "index.html", "skills/hello/index.html", "skills/solo/index.html", "style.css"]);
 
   const index = files["index.html"];
   assert.match(index, /<title>copilot-tips<\/title>/);
   const table = index.slice(index.indexOf("<table>"));
   assert.ok(table.indexOf('href="skills/hello/"') < table.indexOf('href="skills/solo/"'), "👍 の多い順に並ぶ");
-  assert.match(index, /href="skills\/hello\/#voices">いいねを送る</);
-  assert.match(index, /href="skills\/hello\/#voices">感想を書く</);
+  assert.match(index, /href="https:\/\/github\.com\/x\/y\/discussions\/1">いいねを送る</);
+  assert.match(index, /href="https:\/\/github\.com\/x\/y\/discussions\/1">感想を書く</);
   assert.match(index, /2026-11-14 09:00 更新/);
 
   const hello = files["skills/hello/index.html"];
@@ -92,12 +92,12 @@ test("一覧と Skill ごとのページを生成する", () => {
   assert.match(hello, /作成者<\/dt><dd><a href="https:\/\/github.com\/alice">alice/);
   assert.match(hello, /<h3>VS Code<\/h3>/);
   assert.match(hello, /role="tablist"/);
-  assert.match(hello, /href="https:\/\/github.com\/x\/y\/discussions\/1">いいねを送る <span data-up>5</);
+  assert.match(hello, /href="https:\/\/github.com\/x\/y\/discussions\/1">いいねを送る <span>5</);
   assert.match(hello, /href="\.\.\/\.\.\/skills\/hello\/" aria-current="page"/);
 
   const solo = files["skills/solo/index.html"];
   assert.match(solo, /単体の &lt;Skill&gt;/);
-  assert.doesNotMatch(solo, /id="voices"|giscus\.app/, "スレッドが無ければ感想の節を出さない");
+  assert.doesNotMatch(solo, /id="voices"/, "スレッドが無ければ感想の節を出さない");
   assert.doesNotMatch(solo, /copilot plugin install|VS Code|role="tablist"/);
 });
 
@@ -110,14 +110,11 @@ test("左の一覧はプラグインごとにまとめ、プラグインに入�
   ]);
 });
 
-test("ページ内のいいね・感想 (giscus) は、リポジトリの ID とスレッドの番号があるときだけ埋め込む", () => {
-  const skills = boardSkills(fixture());
-  const on = renderBoard({ skills, stats: { ...stats, repoId: "R1" } })["skills/hello/index.html"];
-  assert.match(on, /<script src="https:\/\/giscus\.app\/client\.js" data-repo="fukuda-yuki\/copilot-tips" data-repo-id="R1"/);
-  assert.match(on, /data-mapping="number" data-term="1"/);
-  const off = renderBoard({ skills, stats })["skills/hello/index.html"];
-  assert.doesNotMatch(off, /giscus\.app/);
-  assert.match(off, /id="voices"/);
+test("ボードは外部のスクリプトを読み込まない", () => {
+  const files = renderBoard({ skills: boardSkills(fixture()), stats });
+  for (const [file, html] of Object.entries(files)) {
+    assert.doesNotMatch(html, /<(script|iframe)[^>]+src="(https?:)?\/\//, file);
+  }
 });
 
 test("作成者と感想を書いた人の名前は変数で伏せられる", () => {
@@ -184,10 +181,9 @@ test("感想スレッドの 👍 と感想を集計し、非表示のコメン�
   });
   assert.deepEqual(result, {
     generatedAt: "2026-11-14T00:00:00.000Z",
-    repoId: "R1",
     skills: {
       hello: {
-        url: "https://github.com/x/y/discussions/2", number: 2, categoryId: null, up: 3, commentCount: 1,
+        url: "https://github.com/x/y/discussions/2", number: 2, up: 3, commentCount: 1,
         comments: [{ url: "u1", body: "よい", createdAt: "2026-11-13T00:00:00Z", author: "bob" }],
       },
     },

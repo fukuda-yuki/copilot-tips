@@ -96,8 +96,6 @@ export function boardRows(skills, stats) {
       commentCount: s?.commentCount ?? 0,
       comments: s?.comments ?? [],
       url: s?.url ?? null,
-      number: s?.number ?? null,
-      categoryId: s?.categoryId ?? null,
     };
   }).sort((a, b) => b.up - a.up || b.commentCount - a.commentCount || a.name.localeCompare(b.name));
 }
@@ -212,9 +210,6 @@ pre { font-family: var(--mono); font-size: 14px; line-height: 1.8; margin: 0; mi
 .voice { padding: 16px 0; border-bottom: 1px solid var(--line); }
 .voice p { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
 .send { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-top: 16px; }
-/* giscus が読み込めたら、ページ内の部品に切り替える。読み込めない間は GitHub へのリンクと転載した感想を出す */
-html:not(.giscus-on) .giscus { height: 0; overflow: hidden; }
-.giscus-on .voices, .giscus-on .send { display: none; }
 
 @media (max-width: 760px) {
   .layout { flex-direction: column; align-items: stretch; }
@@ -225,7 +220,7 @@ html:not(.giscus-on) .giscus { height: 0; overflow: hidden; }
 }
 `;
 
-// 入れ方のタブ、コマンドのコピー、ページ内のいいね・感想 (giscus)。JS が無くても内容は読める。
+// 入れ方のタブとコマンドのコピー。JS が無くても内容は読める。
 const SCRIPT = `const tabs = document.querySelector(".tabs");
 if (tabs) {
   const buttons = [...tabs.querySelectorAll("button")];
@@ -250,16 +245,6 @@ document.querySelectorAll("button[data-copy]").forEach((b) => b.addEventListener
   catch { b.textContent = "コピーできませんでした"; }
   setTimeout(() => { b.textContent = "コピー"; }, 2000);
 }));
-if (document.querySelector(".giscus")) addEventListener("message", (e) => {
-  if (e.origin !== "https://giscus.app") return;
-  const discussion = e.data && e.data.giscus && e.data.giscus.discussion;
-  if (!discussion) return;
-  document.documentElement.classList.add("giscus-on");
-  document.querySelectorAll("a[data-voices]").forEach((a) => a.setAttribute("href", "#voices"));
-  const up = discussion.reactions && discussion.reactions.THUMBS_UP && discussion.reactions.THUMBS_UP.count;
-  if (Number.isInteger(up)) document.querySelectorAll("[data-up]").forEach((el) => { el.textContent = String(up); });
-  if (Number.isInteger(discussion.totalCommentCount)) document.querySelectorAll("[data-cm]").forEach((el) => { el.textContent = String(discussion.totalCommentCount); });
-});
 `;
 
 function page({ title, base, current, groups, body }) {
@@ -294,7 +279,7 @@ ${body}
 export function renderIndex(rows, { generatedAt }) {
   const body = rows.map((r) => {
     const act = r.url
-      ? `<a href="skills/${esc(r.name)}/#voices">いいねを送る</a><a href="skills/${esc(r.name)}/#voices">感想を書く</a>`
+      ? `<a href="${esc(r.url)}">いいねを送る</a><a href="${esc(r.url)}">感想を書く</a>`
       : "";
     return `      <tr>
         <td><a class="skill" href="skills/${esc(r.name)}/">${esc(r.name)}</a><span class="sub">${esc(shortDescription(r.description))}</span></td>
@@ -328,26 +313,7 @@ ${footer(generatedAt)}`,
   });
 }
 
-/** ページ内でいいねと感想を送るための giscus の埋め込み。スレッドの番号で対応づける。 */
-function giscusEmbed(row, giscus) {
-  if (!giscus?.repoId || !row.number) return "";
-  const attrs = {
-    "data-repo": giscus.repo,
-    "data-repo-id": giscus.repoId,
-    "data-category-id": row.categoryId ?? "",
-    "data-mapping": "number",
-    "data-term": row.number,
-    "data-reactions-enabled": "1",
-    "data-emit-metadata": "1",
-    "data-input-position": "top",
-    "data-theme": "preferred_color_scheme",
-    "data-lang": "ja",
-  };
-  return `<div class="giscus"></div>
-<script src="https://giscus.app/client.js" ${Object.entries(attrs).map(([k, v]) => `${k}="${esc(v)}"`).join(" ")} crossorigin="anonymous" async></script>`;
-}
-
-export function renderSkill(row, { generatedAt, showAuthors, groups, giscus }) {
+export function renderSkill(row, { generatedAt, showAuthors, groups }) {
   const { repo, sourceBranch } = CATALOG;
   const facts = [];
   if (row.plugins.length > 0) {
@@ -386,8 +352,8 @@ ${comments.map((c) => `<div class="voice">
     : "";
   const actions = row.url
     ? `<div class="actions">
-<a class="btn" data-voices href="${esc(row.url)}">いいねを送る <span data-up>${row.up}</span></a>
-<a class="btn" data-voices href="${esc(row.url)}">感想を書く <span data-cm>${row.commentCount}</span></a>
+<a class="btn" href="${esc(row.url)}">いいねを送る <span>${row.up}</span></a>
+<a class="btn" href="${esc(row.url)}">感想を書く <span>${row.commentCount}</span></a>
 </div>`
     : "";
   const send = row.url
@@ -412,7 +378,6 @@ ${tabs}${panels}
 ${row.url ? `<h2 id="voices">感想</h2>
 ${voices}
 ${send}
-${giscusEmbed(row, giscus)}
 ` : ""}
 ${footer(generatedAt)}`,
   });
@@ -423,13 +388,12 @@ export function renderBoard({ skills, stats, now = new Date(), showAuthors = tru
   const generatedAt = stats?.generatedAt ? new Date(stats.generatedAt) : now;
   const rows = boardRows(skills, stats);
   const groups = navGroups(rows);
-  const giscus = { repo: CATALOG.repo, repoId: stats?.repoId ?? null };
   const files = {
     "index.html": renderIndex(rows, { generatedAt }),
     "style.css": STYLE,
     "board.js": SCRIPT,
   };
-  for (const row of rows) files[`skills/${row.name}/index.html`] = renderSkill(row, { generatedAt, showAuthors, groups, giscus });
+  for (const row of rows) files[`skills/${row.name}/index.html`] = renderSkill(row, { generatedAt, showAuthors, groups });
   return files;
 }
 
