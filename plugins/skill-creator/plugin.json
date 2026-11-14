@@ -1,0 +1,11 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "skill-creator",
+  "version": "0.1.0",
+  "description": "Agent Skill を新しく作る・既存の Skill を見直す・description を改善するための手引きをまとめたプラグイン。",
+  "author": {
+    "name": "fukuda-yuki",
+    "url": "https://github.com/fukuda-yuki"
+  },
+  "repository": "https://github.com/fukuda-yuki/copilot-tips"
+}
