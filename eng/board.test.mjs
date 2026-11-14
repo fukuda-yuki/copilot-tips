@@ -7,7 +7,7 @@ import { CATALOG, COMPOSITION_NS, PLUGIN_SCHEMA_URL, ROOT } from "./lib.mjs";
 import {
   boardSkills, buildBoard, installGuides, recordHistory, renderBoard, shortDescription, showAuthorsFrom, sparkline, weeklyGains,
 } from "./board.mjs";
-import { collect, discussionMarker } from "./board-collect.mjs";
+import { collect, discussionBody, discussionMarker } from "./board-collect.mjs";
 
 function write(file, text) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -98,14 +98,12 @@ test("表の説明は最初の 1 文にして、長ければ切る", () => {
 
 test("ランキングと Skill ごとの詳細ページを生成する", () => {
   const files = renderBoard({ skills: boardSkills(fixture()), stats, history: null });
-  assert.deepEqual(Object.keys(files).sort(), [".nojekyll", "board.js", "index.html", "skills/hello/index.html", "skills/solo/index.html", "style.css"]);
+  assert.deepEqual(Object.keys(files).sort(), ["board.js", "index.html", "skills/hello/index.html", "skills/solo/index.html", "style.css"]);
 
   const index = files["index.html"];
   assert.ok(index.indexOf('href="skills/hello/"') < index.indexOf('href="skills/solo/"'), "👍 の多い順に並ぶ");
-  assert.match(index, /href="skills\/hello\/#install">入れ方</);
-  assert.match(index, /人気投票で、利用回数ではありません/);
+  assert.match(index, /href="https:\/\/github.com\/x\/y\/discussions\/1">👍・感想</);
   assert.match(index, /2026-11-14 09:00 更新/);
-  assert.match(index, /作成: alice/);
   assert.doesNotMatch(index, /最近の感想/);
 
   const hello = files["skills/hello/index.html"];
@@ -113,12 +111,14 @@ test("ランキングと Skill ごとの詳細ページを生成する", () => {
   assert.match(hello, /apm install fukuda-yuki\/copilot-tips\/skills\/hello/);
   assert.match(hello, /助かった &lt;script&gt;/);
   assert.match(hello, /<br>bob/);
+  assert.match(hello, /作成者<\/dt><dd><a href="https:\/\/github.com\/alice">alice/);
+  assert.match(hello, /<h3>VS Code<\/h3>/);
   assert.match(hello, /href="https:\/\/github.com\/x\/y\/discussions\/1">感想を書く/);
 
   const solo = files["skills/solo/index.html"];
   assert.match(solo, /単体の &lt;Skill&gt;/);
-  assert.match(solo, /感想スレッドは次の集計で作られます/);
-  assert.doesNotMatch(solo, /copilot plugin install/);
+  assert.doesNotMatch(solo, /id="voices"/, "感想もスレッドも無ければ節ごと出さない");
+  assert.doesNotMatch(solo, /copilot plugin install|VS Code/);
 });
 
 test("作成者と感想を書いた人の名前は変数で伏せられる", () => {
@@ -135,7 +135,7 @@ test("集計データが無くてもページを作れる (dist/board に出力)
   const root = fixture();
   const { outDir } = buildBoard({ root, now: new Date("2026-11-14T00:00:00Z") });
   assert.equal(outDir, path.join(root, "dist", "board"));
-  assert.match(fs.readFileSync(path.join(outDir, "skills/solo/index.html"), "utf8"), /まだ感想はありません/);
+  assert.match(fs.readFileSync(path.join(outDir, "skills/solo/index.html"), "utf8"), /2026-11-14 09:00 更新/);
 });
 
 // --- 集計 ---
@@ -157,6 +157,10 @@ function fakeGitHub({ discussions = [], enabled = true } = {}) {
       const d = node(next++, /skill: ([a-z0-9-]+)/.exec(variables.body)[1], 0);
       all.push(d);
       return { createDiscussion: { discussion: d } };
+    }
+    if (query.includes("updateDiscussion")) {
+      all.find((d) => d.id === variables.discussionId).body = variables.body;
+      return { updateDiscussion: { discussion: { id: variables.discussionId } } };
     }
     if (query.includes("discussionCategories")) {
       return { repository: { id: "R1", hasDiscussionsEnabled: enabled, discussionCategories: { nodes: [{ id: "C1", name: "General" }] } } };
@@ -204,6 +208,22 @@ test("感想スレッドの無い Skill にはスレッドを自動で作る", a
   assert.ok(created[0].variables.body.startsWith(discussionMarker("new-skill")));
   assert.equal(result.skills["new-skill"].up, 0);
   assert.equal(result.skills.hello.up, 1);
+});
+
+test("workflow が立てたスレッドの本文だけを最新の文面にそろえる", async () => {
+  const { graphql, calls } = fakeGitHub({
+    discussions: [
+      { number: 1, skill: "hello", up: 0 },
+      { number: 2, skill: "solo", up: 0, by: "owner" },
+    ],
+  });
+  const skills = [{ name: "hello" }, { name: "solo" }];
+  await collect({ skills, graphql, owner: "x", name: "y" });
+  const updates = calls.filter((c) => c.query.includes("updateDiscussion"));
+  assert.deepEqual(updates.map((c) => c.variables), [{ discussionId: "D1", body: discussionBody("hello") }]);
+  // そろった後は何もしない
+  await collect({ skills, graphql, owner: "x", name: "y" });
+  assert.equal(calls.filter((c) => c.query.includes("updateDiscussion")).length, 1);
 });
 
 test("目印があっても、workflow とメンテナー以外が立てたスレッドは採用しない", async () => {

@@ -55,9 +55,7 @@ APM でプラグインのパスを直接指定するときは、末尾の `#mark
 
 ## Skill 評判ボード
 
-[Skill 評判ボード](https://fukuda-yuki.github.io/copilot-tips/) では、Skill ごとの 👍 と感想の集計と、各 Skill の入れ方を見られます (リポジトリの公開後に有効になります)。
-
-役に立った Skill があれば、ボードでその Skill を開き、「感想を書く」から GitHub の感想スレッドへ進んでください。最初の投稿に付けた 👍 が票になり、コメントが感想としてボードに載ります。集計は 1 日 1 回です。ボードの数字は人気投票で、利用回数ではありません。
+[Skill 評判ボード](https://fukuda-yuki.github.io/copilot-tips/): Skill ごとの 👍・感想と入れ方。👍 と感想は、ボードで Skill を開いて「感想を書く」から。
 
 ## 仕組み
 

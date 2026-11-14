@@ -55,7 +55,7 @@ export function installGuides(skill) {
       { tool: "APM", plugin, lines: [`apm install ${repo}/plugins/${plugin}#${distBranch}`] },
     );
   }
-  guides.push({ tool: "APM (この Skill だけ)", lines: [`apm install ${repo}/skills/${skill.name}`] });
+  guides.push({ tool: "APM (Skill 単体)", lines: [`apm install ${repo}/skills/${skill.name}`] });
   return guides;
 }
 
@@ -145,6 +145,8 @@ function formatTime(date) {
   }).formatToParts(date).map((p) => [p.type, p.value]));
   return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
 }
+
+const footer = (generatedAt) => `<p class="muted small" style="margin-top:40px">${esc(formatTime(generatedAt))} 更新</p>`;
 
 const signed = (n) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "0");
 
@@ -242,25 +244,12 @@ ${body}
 `;
 }
 
-const ABOUT = `<h2>この数字について</h2>
-<p>👍 と感想は、Skill ごとに 1 つある GitHub の感想スレッドから 1 日 1 回集計しています。</p>
-<p>これは人気投票で、利用回数ではありません。Copilot CLI や Claude Code は、Skill が何回使われたかを作者に知らせないので、利用回数は載せていません。</p>`;
-
-function authorText(row, showAuthors) {
-  if (!showAuthors || row.authors.length === 0) return "";
-  return `作成: ${row.authors.map((a) => esc(a.name)).join("、")}。`;
-}
-
-export function renderIndex(rows, { generatedAt, showAuthors }) {
-  const { repo } = CATALOG;
-  const totalUp = rows.reduce((a, r) => a + r.up, 0);
-  const totalCm = rows.reduce((a, r) => a + r.commentCount, 0);
+export function renderIndex(rows, { generatedAt }) {
   const body = rows.map((r, i) => {
-    const plugins = r.plugins.length > 0 ? `${r.plugins.map(esc).join("、")} プラグイン。` : "";
     const voice = r.url ? ` <a href="${esc(r.url)}">👍・感想</a>` : "";
     return `      <tr data-name="${esc(r.name)}" data-up="${r.up}" data-wk="${r.week}" data-cm="${r.commentCount}">
         <td class="rank">${i + 1}</td>
-        <td><a class="skill" href="skills/${esc(r.name)}/">${esc(r.name)}</a><span class="sub">${esc(shortDescription(r.description))} ${plugins}${authorText(r, showAuthors)} <a href="skills/${esc(r.name)}/#install">入れ方</a>${voice}</span></td>
+        <td><a class="skill" href="skills/${esc(r.name)}/">${esc(r.name)}</a><span class="sub">${esc(shortDescription(r.description))}${voice}</span></td>
         <td class="n up">${r.up}</td>
         <td class="n">${signed(r.week)}</td>
         <td class="n">${r.commentCount}</td>
@@ -272,9 +261,6 @@ export function renderIndex(rows, { generatedAt, showAuthors }) {
     title: "Skill 評判ボード",
     base: "",
     body: `<h1>Skill 評判ボード</h1>
-<p class="muted"><a class="mono" href="https://github.com/${repo}">${repo}</a> の Skill に付いた 👍 と感想の集計。${esc(formatTime(generatedAt))} 更新。</p>
-
-<h2>ランキング</h2>
 <div class="scroll">
   <table>
     <thead>
@@ -284,7 +270,7 @@ export function renderIndex(rows, { generatedAt, showAuthors }) {
         <th class="n"><button type="button" data-k="up" aria-pressed="true">👍</button></th>
         <th class="n"><button type="button" data-k="wk" aria-pressed="false">今週</button></th>
         <th class="n"><button type="button" data-k="cm" aria-pressed="false">感想</button></th>
-        <th class="t">8 週の推移</th>
+        <th class="t">8 週</th>
       </tr>
     </thead>
     <tbody id="rank">
@@ -292,12 +278,7 @@ ${body}
     </tbody>
   </table>
 </div>
-<p class="muted small">見出しの 👍・今週・感想を押すと並べ替わります。Skill 名を押すと、説明・入れ方・感想の一覧が見られます。合計は 👍 ${totalUp}、感想 ${totalCm} 件。</p>
-
-<h2>👍 と感想の送り方</h2>
-<p>Skill 名を押して詳細ページを開き、「感想を書く」から GitHub の感想スレッドへ進みます。スレッドの最初の投稿に 👍 を付けると票になり、コメントが感想として載ります。GitHub のアカウントが必要です。</p>
-
-${ABOUT}`,
+${footer(generatedAt)}`,
   });
 }
 
@@ -305,11 +286,11 @@ export function renderSkill(row, { generatedAt, showAuthors }) {
   const { repo, sourceBranch } = CATALOG;
   const facts = [
     ["👍", String(row.up)],
-    ["今週の増加", signed(row.week)],
+    ["今週", signed(row.week)],
     ["感想", `${row.commentCount} 件`],
     ["プラグイン", row.plugins.length > 0
       ? row.plugins.map((p) => `<a class="mono" href="https://github.com/${repo}/tree/${sourceBranch}/plugins/${esc(p)}">${esc(p)}</a>`).join("、")
-      : "どのプラグインにも入っていません"],
+      : "なし"],
   ];
   if (showAuthors && row.authors.length > 0) {
     facts.push(["作成者", row.authors.map((a) => (a.url ? `<a href="${esc(a.url)}">${esc(a.name)}</a>` : esc(a.name))).join("、")]);
@@ -323,12 +304,12 @@ export function renderSkill(row, { generatedAt, showAuthors }) {
   const voices = comments.length > 0
     ? `<dl>
 ${comments.map((c) => `  <dt>${esc(dayOf(new Date(c.createdAt)))}${showAuthors && c.author ? `<br>${esc(c.author)}` : ""}</dt>
-  <dd><span class="voice">${esc(c.body)}</span> <a class="small" href="${esc(c.url)}">GitHub で見る</a></dd>`).join("\n")}
+  <dd><span class="voice">${esc(c.body)}</span> <a class="small" href="${esc(c.url)}">GitHub</a></dd>`).join("\n")}
 </dl>`
-    : `<p class="muted">まだ感想はありません。</p>`;
+    : "";
   const write = row.url
-    ? `<p><a href="${esc(row.url)}">感想を書く・👍 を付ける</a> (GitHub の感想スレッドが開きます)</p>`
-    : `<p class="muted">感想スレッドは次の集計で作られます。</p>`;
+    ? `<p><a href="${esc(row.url)}">感想を書く・👍 を付ける</a></p>`
+    : "";
 
   return page({
     title: `${row.name} - Skill 評判ボード`,
@@ -341,14 +322,15 @@ ${facts.map(([k, v]) => `  <dt>${k}</dt><dd>${v}</dd>`).join("\n")}
 </dl>
 
 <h2 id="install">入れ方</h2>
-<p>使っているツールのコマンドを実行します。VS Code では、<code class="mono">settings.json</code> の <code class="mono">chat.plugins.marketplaces</code> に <code class="mono">"${repo}"</code> を追加し、拡張機能ビューで <code class="mono">@agentPlugins</code> を検索して${row.plugins.length > 0 ? ` <span class="mono">${row.plugins.map(esc).join("、")}</span> を` : ""}インストールします。</p>
-${install}
+${install}${row.plugins.length > 0 ? `
+<h3>VS Code</h3>
+<p><code class="mono">settings.json</code> の <code class="mono">chat.plugins.marketplaces</code> に <code class="mono">"${repo}"</code> を足し、拡張機能ビューの <code class="mono">@agentPlugins</code> から <span class="mono">${row.plugins.map(esc).join("、")}</span> を入れる。</p>` : ""}
 
-<h2 id="voices">感想</h2>
+${write || voices ? `<h2 id="voices">感想</h2>
 ${write}
 ${voices}
-
-<p class="muted small" style="margin-top:40px">${esc(formatTime(generatedAt))} 更新。これは人気投票で、利用回数ではありません。</p>`,
+` : ""}
+${footer(generatedAt)}`,
   });
 }
 
@@ -357,10 +339,9 @@ export function renderBoard({ skills, stats, history, now = new Date(), showAuth
   const generatedAt = stats?.generatedAt ? new Date(stats.generatedAt) : now;
   const rows = boardRows(skills, stats, history, dayOf(generatedAt));
   const files = {
-    "index.html": renderIndex(rows, { generatedAt, showAuthors }),
+    "index.html": renderIndex(rows, { generatedAt }),
     "style.css": STYLE,
     "board.js": SCRIPT,
-    ".nojekyll": "",
   };
   for (const row of rows) files[`skills/${row.name}/index.html`] = renderSkill(row, { generatedAt, showAuthors });
   return files;

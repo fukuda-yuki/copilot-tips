@@ -4,6 +4,7 @@
 //  - Skill とスレッドの対応は、スレッド本文に埋め込んだ目印 (discussionMarker) で取る。
 //    タイトルを書き換えたり、カテゴリを移したりしても対応は崩れない。
 //    目印は誰でも書けるので、この workflow 自身かメンテナーが立てたスレッドだけを採用する
+//  - workflow 自身が立てたスレッドの本文は、discussionBody の文面に毎回そろえる
 //
 // 使い方 (GitHub Actions から実行する):
 //   GITHUB_TOKEN=... GITHUB_REPOSITORY=owner/name \
@@ -26,16 +27,15 @@ export function discussionTitle(skill) {
 }
 
 export function discussionBody(skill) {
-  const { repo, sourceBranch } = CATALOG;
+  const { repo, sourceBranch, boardUrl } = CATALOG;
   return `${discussionMarker(skill)}
-[\`${skill}\`](https://github.com/${repo}/tree/${sourceBranch}/skills/${skill}) の感想スレッドです。
+[\`${skill}\`](https://github.com/${repo}/tree/${sourceBranch}/skills/${skill}) · [ボード](${boardUrl}skills/${skill}/)
 
-- 役に立ったら、この投稿に 👍 を付けてください。Skill 評判ボードの票になります
-- 感想・要望・不具合はコメントで書いてください。ボードの ${skill} のページに載ります
-
-👍 と感想は 1 日 1 回集計されます。このスレッドは GitHub Actions が自動で作りました。
+役に立ったらこの投稿に 👍。感想・要望・不具合はコメントへ。
 `;
 }
+
+const sameText = (a, b) => (a ?? "").replace(/\r\n/g, "\n").trim() === b.replace(/\r\n/g, "\n").trim();
 
 const REPO_QUERY = `query($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
@@ -62,6 +62,10 @@ const DISCUSSIONS_QUERY = `query($owner: String!, $name: String!, $cursor: Strin
       nodes { ${DISCUSSION_FIELDS} }
     }
   }
+}`;
+
+const UPDATE_MUTATION = `mutation($discussionId: ID!, $body: String!) {
+  updateDiscussion(input: { discussionId: $discussionId, body: $body }) { discussion { id } }
 }`;
 
 const CREATE_MUTATION = `mutation($repositoryId: ID!, $categoryId: ID!, $title: String!, $body: String!) {
@@ -123,6 +127,16 @@ export async function collect({ skills, graphql, owner, name, category = DEFAULT
     }
     cursor = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
   } while (cursor);
+
+  // workflow 自身が立てたスレッドは、本文を discussionBody の最新の文面にそろえる
+  for (const skill of skills) {
+    const d = bySkill.get(skill.name);
+    const body = discussionBody(skill.name);
+    if (d?.viewerDidAuthor && !sameText(d.body, body)) {
+      await graphql(UPDATE_MUTATION, { discussionId: d.id, body });
+      log(`感想スレッドの本文を更新しました: ${skill.name} (#${d.number})`);
+    }
+  }
 
   const missing = skills.filter((s) => !bySkill.has(s.name));
   if (missing.length > 0) {
