@@ -60,6 +60,11 @@ Skill や Agent の実体はリポジトリ直下の `skills/` `agents/` に 1 �
 3. 既存のプラグインの中身を変えたときは `version` を上げる。利用者側の更新検知に使われる
 4. `npm run build` を実行し、`dist/plugins/<plugin-name>/` の中身が意図どおりか確認する
 
+## 他者の著作物を元にした Skill
+
+- ライセンスが再配布と改変を認めているものだけを入れる。元のライセンス文を `skills/<skill-name>/LICENSE.txt` に置き、出典と変更点を Skill 内とプラグインの README に書く (ライセンス上の義務)
+- ライセンスが不明な文章 (製品に組み込まれたプロンプトを抜き出したものなど) は写さず、同じ目的の Skill を新しく書く
+
 ## plugin.json の書き方
 
 [Agent Plugins 仕様 1.0.0](https://github.com/agentplugins/agent-plugins-spec) に従います。同梱内容はこのリポジトリ専用の名前空間に宣言し、配布時に取り除かれます。
