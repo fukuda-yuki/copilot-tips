@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { CATALOG, COMPOSITION_NS, PLUGIN_SCHEMA_URL, ROOT } from "./lib.mjs";
 import {
-  boardSkills, buildBoard, installGuides, recordHistory, renderBoard, shortDescription, showAuthorsFrom, sparkline, weeklyGains,
+  boardSkills, buildBoard, installGuides, navGroups, recordHistory, renderBoard, shortDescription, showAuthorsFrom,
 } from "./board.mjs";
 import { collect, discussionMarker } from "./board-collect.mjs";
 
@@ -53,7 +53,7 @@ test("このリポジトリの Skill はすべてボードに載る", () => {
 test("インストールのコマンドは README.md の記載と一致する", () => {
   const readme = fs.readFileSync(path.join(ROOT, "README.md"), "utf8");
   const guides = installGuides({ name: "<skill-name>", plugins: ["<plugin-name>"] });
-  for (const line of guides.flatMap((g) => g.lines)) {
+  for (const line of guides.flatMap((g) => g.blocks.flatMap((b) => b.lines))) {
     assert.ok(readme.includes(line), `README.md に "${line}" がありません`);
   }
 });
@@ -66,66 +66,65 @@ test("履歴は 1 日 1 件で、古い記録は捨てる", () => {
   assert.deepEqual(history, { version: 1, days: { "2026-11-13": { hello: { up: 2, cm: 0 } }, "2026-11-14": { hello: { up: 4, cm: 1 } } } });
 });
 
-test("週ごとの増加は日ごとの記録の差分で求め、記録の無い期間は 0", () => {
-  const days = {
-    "2026-10-30": { hello: { up: 1, cm: 0 } },
-    "2026-11-07": { hello: { up: 4, cm: 0 } },
-    "2026-11-14": { hello: { up: 9, cm: 0 } },
-  };
-  // 週の区切り: 11-14, 11-07, 10-31, 10-24 ... 10-24 時点の記録は無い
-  assert.deepEqual(weeklyGains({ days }, "hello", "2026-11-14"), [0, 0, 0, 0, 0, 0, 3, 5]);
-  assert.deepEqual(weeklyGains(null, "hello", "2026-11-14"), [0, 0, 0, 0, 0, 0, 0, 0]);
-});
-
-test("動かし始めて 7 日未満でも、最初の記録からの増加を今週の分に数える", () => {
-  const days = {
-    "2026-11-11": { hello: { up: 6, cm: 0 } },
-    "2026-11-12": { hello: { up: 12, cm: 0 } },
-    "2026-11-13": { hello: { up: 18, cm: 0 }, later: { up: 0, cm: 0 } },
-    "2026-11-14": { hello: { up: 24, cm: 0 }, later: { up: 2, cm: 0 } },
-  };
-  assert.deepEqual(weeklyGains({ days }, "hello", "2026-11-14"), [0, 0, 0, 0, 0, 0, 0, 18]);
-  // 途中から載った Skill は、その Skill の最初の記録を始点にする
-  assert.deepEqual(weeklyGains({ days }, "later", "2026-11-14"), [0, 0, 0, 0, 0, 0, 0, 2]);
-  assert.equal(sparkline([0, 0, 0, 0, 0, 0, 3, 6]), "▁▁▁▁▁▁▅█");
-});
-
 test("表の説明は最初の 1 文にして、長ければ切る", () => {
   assert.equal(shortDescription("あいさつする。丁寧に。"), "あいさつする。");
   assert.equal(shortDescription("Use this. More."), "Use this.");
   assert.equal(shortDescription("あ".repeat(100), 10), "あああああああああ…");
 });
 
-test("ランキングと Skill ごとの詳細ページを生成する", () => {
-  const files = renderBoard({ skills: boardSkills(fixture()), stats, history: null });
+test("一覧と Skill ごとのページを生成する", () => {
+  const files = renderBoard({ skills: boardSkills(fixture()), stats: { ...stats, repoId: "R1" } });
   assert.deepEqual(Object.keys(files).sort(), ["board.js", "index.html", "skills/hello/index.html", "skills/solo/index.html", "style.css"]);
 
   const index = files["index.html"];
-  assert.ok(index.indexOf('href="skills/hello/"') < index.indexOf('href="skills/solo/"'), "👍 の多い順に並ぶ");
-  assert.match(index, /href="https:\/\/github.com\/x\/y\/discussions\/1">👍・感想</);
+  assert.match(index, /<title>copilot-tips<\/title>/);
+  const table = index.slice(index.indexOf("<table>"));
+  assert.ok(table.indexOf('href="skills/hello/"') < table.indexOf('href="skills/solo/"'), "👍 の多い順に並ぶ");
+  assert.match(index, /href="skills\/hello\/#voices">いいねを送る</);
+  assert.match(index, /href="skills\/hello\/#voices">感想を書く</);
   assert.match(index, /2026-11-14 09:00 更新/);
-  assert.doesNotMatch(index, /最近の感想/);
 
   const hello = files["skills/hello/index.html"];
   assert.match(hello, /copilot plugin install hello-pack@copilot-tips/);
   assert.match(hello, /apm install fukuda-yuki\/copilot-tips\/skills\/hello/);
   assert.match(hello, /助かった &lt;script&gt;/);
-  assert.match(hello, /<br>bob/);
+  assert.match(hello, /bob　<a/);
   assert.match(hello, /作成者<\/dt><dd><a href="https:\/\/github.com\/alice">alice/);
   assert.match(hello, /<h3>VS Code<\/h3>/);
-  assert.match(hello, /href="https:\/\/github.com\/x\/y\/discussions\/1">感想を書く/);
+  assert.match(hello, /role="tablist"/);
+  assert.match(hello, /href="https:\/\/github.com\/x\/y\/discussions\/1">いいねを送る <span data-up>5</);
+  assert.match(hello, /href="\.\.\/\.\.\/skills\/hello\/" aria-current="page"/);
 
   const solo = files["skills/solo/index.html"];
   assert.match(solo, /単体の &lt;Skill&gt;/);
-  assert.doesNotMatch(solo, /id="voices"/, "感想もスレッドも無ければ節ごと出さない");
-  assert.doesNotMatch(solo, /copilot plugin install|VS Code/);
+  assert.doesNotMatch(solo, /id="voices"|giscus\.app/, "スレッドが無ければ感想の節を出さない");
+  assert.doesNotMatch(solo, /copilot plugin install|VS Code|role="tablist"/);
+});
+
+test("左の一覧はプラグインごとにまとめ、プラグインに入っていない Skill は最後に置く", () => {
+  const rows = [{ name: "b", plugins: ["p2", "p1"] }, { name: "a", plugins: ["p1"] }, { name: "z", plugins: [] }];
+  assert.deepEqual(navGroups(rows), [
+    { title: "p1", skills: ["a", "b"] },
+    { title: "p2", skills: ["b"] },
+    { title: "Skill 単体", skills: ["z"] },
+  ]);
+});
+
+test("ページ内のいいね・感想 (giscus) は、リポジトリの ID とスレッドの番号があるときだけ埋め込む", () => {
+  const skills = boardSkills(fixture());
+  const on = renderBoard({ skills, stats: { ...stats, repoId: "R1" } })["skills/hello/index.html"];
+  assert.match(on, /<script src="https:\/\/giscus\.app\/client\.js" data-repo="fukuda-yuki\/copilot-tips" data-repo-id="R1"/);
+  assert.match(on, /data-mapping="number" data-term="1"/);
+  const off = renderBoard({ skills, stats })["skills/hello/index.html"];
+  assert.doesNotMatch(off, /giscus\.app/);
+  assert.match(off, /id="voices"/);
 });
 
 test("作成者と感想を書いた人の名前は変数で伏せられる", () => {
   assert.equal(showAuthorsFrom(undefined), true);
   assert.equal(showAuthorsFrom("true"), true);
   assert.equal(showAuthorsFrom("false"), false);
-  const files = renderBoard({ skills: boardSkills(fixture()), stats, history: null, showAuthors: false });
+  const files = renderBoard({ skills: boardSkills(fixture()), stats, showAuthors: false });
   for (const html of Object.values(files)) {
     assert.doesNotMatch(html, /alice|bob/);
   }
@@ -185,9 +184,10 @@ test("感想スレッドの 👍 と感想を集計し、非表示のコメン�
   });
   assert.deepEqual(result, {
     generatedAt: "2026-11-14T00:00:00.000Z",
+    repoId: "R1",
     skills: {
       hello: {
-        url: "https://github.com/x/y/discussions/2", number: 2, up: 3, commentCount: 1,
+        url: "https://github.com/x/y/discussions/2", number: 2, categoryId: null, up: 3, commentCount: 1,
         comments: [{ url: "u1", body: "よい", createdAt: "2026-11-13T00:00:00Z", author: "bob" }],
       },
     },

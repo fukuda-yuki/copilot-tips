@@ -31,9 +31,10 @@ function sampleTexts() {
   ];
   const stats = {
     generatedAt: "2026-11-14T00:00:00Z",
-    skills: { a: { url: "https://example.com/1", up: 1, commentCount: 1, comments: [{ url: "u", body: "c", createdAt: "2026-11-13T00:00:00Z", author: "m" }] } },
+    repoId: "R1",
+    skills: { a: { url: "https://example.com/1", number: 1, up: 1, commentCount: 1, comments: [{ url: "u", body: "c", createdAt: "2026-11-13T00:00:00Z", author: "m" }] } },
   };
-  const files = renderBoard({ skills, stats, history: null });
+  const files = renderBoard({ skills, stats });
   const texts = Object.entries(files).filter(([f]) => f.endsWith(".html")).map(([f, html]) => [f, visibleText(html)]);
   texts.push(["感想スレッドの本文", visibleText(discussionBody("a"))]);
   return texts;

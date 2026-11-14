@@ -9,7 +9,7 @@ while read -r _local_ref _local_sha remote_ref _remote_sha; do
       echo "marketplace は GitHub Actions が main から自動生成する配布専用ブランチです。変更は main 宛ての Pull Request で行ってください。" >&2
       exit 1 ;;
     refs/heads/board-data)
-      echo "board-data は GitHub Actions が Skill 評判ボードの集計履歴を残すブランチです。直接 push しないでください。" >&2
+      echo "board-data は GitHub Actions が Skill ボードの集計履歴を残すブランチです。直接 push しないでください。" >&2
       exit 1 ;;
   esac
 done
