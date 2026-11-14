@@ -1,0 +1,23 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "dotnet-modernization-guidance",
+  "description": "WebForms / WinForms から ASP.NET Core MVC へ移る案件で、vertical slice 実装と質問主導 mentoring をまとめて支援するプラグイン。",
+  "version": "0.1.0",
+  "author": {
+    "name": "fukuda-yuki",
+    "url": "https://github.com/fukuda-yuki"
+  },
+  "repository": "https://github.com/fukuda-yuki/copilot-tips",
+  "extensions": {
+    "io.github.fukuda-yuki.copilot-tips": {
+      "skills": [
+        "./skills/dotnet-modernization-slice-guidance/",
+        "./skills/dotnet-modernization-socratic-mentoring/"
+      ],
+      "agents": [
+        "./agents/modernization-modernizer.md",
+        "./agents/sensei-modernization-mentor.md"
+      ]
+    }
+  }
+}

@@ -1,11 +1,13 @@
 {
-  "name": "awesome-copilot-ja-dotnet-mvc",
+  "name": "copilot-tips",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "build": "npm run plugin:validate && npm run plugin:generate-marketplace",
-    "plugin:generate-marketplace": "node eng/generate-marketplace.mjs",
-    "plugin:materialize": "node eng/materialize-plugins.mjs",
-    "plugin:validate": "node eng/validate-plugins.mjs"
+    "validate": "node eng/validate.mjs",
+    "build": "node eng/build-dist.mjs",
+    "test": "node --test"
   }
 }
