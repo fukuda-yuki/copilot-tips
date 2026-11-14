@@ -5,6 +5,11 @@ import { fileURLToPath } from "node:url";
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
+/** git は hook の実行中に GIT_DIR などを環境変数で渡してくる。別のリポジトリを操作するときは外す。 */
+export const GIT_ENV = { ...process.env };
+for (const name of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_COMMON_DIR"]) delete GIT_ENV[name];
+
+
 /** カタログ全体の設定。リポジトリ名や公開先が変わったらここだけ直す。 */
 export const CATALOG = {
   name: "copilot-tips",
