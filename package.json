@@ -10,6 +10,7 @@
     "validate": "node eng/validate.mjs && node eng/check-versions.mjs",
     "generate": "node eng/generate.mjs",
     "build": "node eng/build-dist.mjs",
+    "board": "node eng/board.mjs",
     "test": "node --test"
   }
 }

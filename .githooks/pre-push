@@ -1,5 +1,5 @@
 #!/bin/sh
-# main と marketplace へ直接 push させない。main は Pull Request で、marketplace は GitHub Actions だけが更新する。
+# main・marketplace・board-data へ直接 push させない。main は Pull Request で、ほかは GitHub Actions だけが更新する。
 while read -r _local_ref _local_sha remote_ref _remote_sha; do
   case "$remote_ref" in
     refs/heads/main)
@@ -7,6 +7,9 @@ while read -r _local_ref _local_sha remote_ref _remote_sha; do
       exit 1 ;;
     refs/heads/marketplace)
       echo "marketplace は GitHub Actions が main から自動生成する配布専用ブランチです。変更は main 宛ての Pull Request で行ってください。" >&2
+      exit 1 ;;
+    refs/heads/board-data)
+      echo "board-data は GitHub Actions が Skill 評判ボードの集計履歴を残すブランチです。直接 push しないでください。" >&2
       exit 1 ;;
   esac
 done
