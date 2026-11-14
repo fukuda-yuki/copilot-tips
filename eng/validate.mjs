@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 正本 (staged) の内容が規約どおりかを検証する。問題があれば exit 1。
+// 正本 (main) の内容が規約どおりかを検証する。問題があれば exit 1。
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

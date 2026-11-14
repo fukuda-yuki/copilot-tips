@@ -8,7 +8,8 @@
 // これにより、利用者がどのブランチを登録しても実体化済みのプラグインが入る。
 import fs from "node:fs";
 import path from "node:path";
-import { CATALOG, loadCatalog, readComposition, readFrontmatter, readJson } from "./lib.mjs";
+import { fileURLToPath } from "node:url";
+import { ROOT, CATALOG, loadCatalog, readComposition, readFrontmatter, readJson } from "./lib.mjs";
 
 export const README_START = "<!-- catalog:start (自動生成。手で編集しない) -->";
 export const README_END = "<!-- catalog:end -->";
@@ -108,4 +109,11 @@ export function staleGenerated(root) {
       return !fs.existsSync(file) || fs.readFileSync(file, "utf8") !== content;
     })
     .map(([rel]) => rel);
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const stale = staleGenerated(ROOT);
+  writeGenerated(ROOT);
+  // pre-commit hook が stage し直せるよう、更新したファイルを 1 行ずつ出力する
+  for (const rel of stale) console.log(rel);
 }
