@@ -18,7 +18,11 @@ copilot plugin install <plugin-name>@copilot-tips
 
 ### VS Code (GitHub Copilot)
 
-`settings.json` の `chat.plugins.marketplaces` に `"fukuda-yuki/copilot-tips"` を追加し、拡張機能ビューで `@agentPlugins` を検索してインストールします。
+`settings.json` に次の設定を追加し、拡張機能ビューで `@agentPlugins` を検索してインストールします。
+
+```json
+"chat.plugins.marketplaces": ["fukuda-yuki/copilot-tips"]
+```
 
 ### Claude Code
 
@@ -58,9 +62,11 @@ APM でプラグインのパスを直接指定するときは、末尾の `#mark
 
 <!-- catalog:end -->
 
-## Skill 評判ボード
+## いいねと感想
 
-[Skill 評判ボード](https://fukuda-yuki.github.io/copilot-tips/): Skill ごとの 👍・感想と入れ方。👍 と感想は、ボードで Skill を開いて「感想を書く」から。
+[Skill の一覧](https://fukuda-yuki.github.io/copilot-tips/) で Skill を開くと、いいねと感想を送れます。GitHub のサインインが必要です。
+
+いいねと感想は、Skill ごとに 1 つある GitHub Discussions の感想スレッドから 1 日 1 回集計しています。これは人気投票で、利用回数ではありません。Copilot CLI や Claude Code は Skill が何回使われたかを作者に知らせないので、利用回数は載せていません。
 
 ## 仕組み
 
