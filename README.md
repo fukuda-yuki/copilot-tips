@@ -36,20 +36,22 @@ APM でプラグインのパスを直接指定するときは、末尾の `#mark
 
 <!-- catalog:start (自動生成。手で編集しない) -->
 
-### プラグイン (3)
+### プラグイン (4)
 
 | プラグイン | 説明 | 同梱物 |
 | --- | --- | --- |
 | [`doctor`](plugins/doctor) | Copilot に読ませている指示ファイルや Skill を点検するプラグイン。設定の健康診断 (copilot-doctor) と、古い書き方・矛盾を見つけるプロンプト監査 (prompt-audit) を同梱。 | skill: `copilot-doctor`<br>skill: `prompt-audit` |
 | [`imozuru`](plugins/imozuru) | 知らない分野を、用語・人・媒体から芋づる式にたどって原文を集め、抜き書きと詳細レポートにまとめるプラグイン。 | skill: `imozuru` |
+| [`modern-web-guidance`](plugins/modern-web-guidance) | Web UI を書く前に、Google の Modern Web Guidance から最新の Web プラットフォーム作法 (Baseline 準拠) を引いてくるプラグイン。 | skill: `modern-web-guidance` |
 | [`skill-creator`](plugins/skill-creator) | Agent Skill を新しく作る・既存の Skill を見直す・description を改善するための手引きをまとめたプラグイン。 | skill: `skill-creator` |
 
-### Skill (4)
+### Skill (5)
 
 | Skill | 説明 |
 | --- | --- |
 | [`copilot-doctor`](skills/copilot-doctor) | GitHub Copilot のカスタマイズ一式 (custom instructions、AGENTS.md、prompt file、Skill、カスタムエージェント) の健康診断をする。読み込まれない・壊れているファイル、常に読み込まれて重い指示、重複や矛盾、コードから分かるだけの記述を見つけ、修正案を出して同意を得てから直す。「Copilot の設定を診断して」「doctor」「instructions を整理・軽量化したい」「Skill が呼ばれない」などの依頼で使う。 |
 | [`imozuru`](skills/imozuru) | 知らない分野にキャッチアップするとき、汎用的な言葉から界隈の用語・中心の人・媒体（学会・雑誌・個人ブログ・動画・リポジトリ・一覧）を特定し、引用・リンク・著者を芋づる式にたどって、目当ての原文（論文も個人の記事や動画の字幕も）を要約せずそのまま ~/research/{話題}/sources/ に保存する。周ごとに map.md（用語・人・媒体・原文の一覧）を書き足し、調査の論点の全部に原文が付くか飽和したら止める。見張りのモードでは、map.md の媒体（Qiita・Zenn のタグ、note、YouTube、ブログ、arXiv）の新着を RSS で引いて原文の冒頭つきで並べる。「芋づる式に調べて」「この分野をキャッチアップしたい」「界隈の用語と人から掘って」「論文とか先行研究を漁って」「既存の技術を真似したいから元ネタを探して」「上手い人のやり方を集めて」「原文で落として」「〇〇って研究あるの？原典ほしい」「全然わからないから流れを掘って」「どういう界隈でどう呼ばれてるか知りたい」「〇〇の新着見て」「今週の〇〇の記事まとめて」「キャッチアップ」「imozuru watch」、英語では dig into this field / find the canonical papers on X / literature dive / what is new in X this week の依頼で使う。答えが1つの事実の確認（年・有無だけ・仕様1つ → そのまま検索）、手元の PC の中の資料を探す、読んだ資料の要約や解説を書く、には使わない。 |
+| [`modern-web-guidance`](skills/modern-web-guidance) | Web UI を書く前に、Google の Modern Web Guidance から最新のブラウザ作法 (Baseline 準拠) を引く。モーダル・ダイアログ・ポップオーバー、フォームとバリデーション、表、ダークモード、View Transitions・アニメーション、スクロール演出、コンテナクエリやアンカー配置などのレイアウト、LCP/INP/CLS のパフォーマンス、アクセシビリティ、最新のブラウザ API の実装やレビューで使う。「モーダルを実装して」「アニメーションを付けたい」「この UI をモダンにしたい」「アクセシビリティを見て」「表示が遅い」などの依頼で使う。バックエンド、ビルド設定、Web UI 以外の作業には使わない。 |
 | [`prompt-audit`](skills/prompt-audit) | プロンプト資産 (copilot-instructions.md、*.instructions.md、AGENTS.md、prompt file、Skill、カスタムエージェント、システムプロンプト、ツール説明) を監査し、古いモデル向けの書き方・現状と食い違う記述・ファイル間の矛盾を見つけて、根拠付きのレポートと修正案 (diff) を出す。「プロンプトを監査して」「instructions を見直して」「prompt audit」「カスタム指示が効かない・古い」などの依頼で使う。 |
 | [`skill-creator`](skills/skill-creator) | Use this skill when the user wants to create a new GitHub Copilot agent skill, adapt an existing skill, improve a skill's trigger description, review a skill's structure, add validation and evaluation, or extract a reusable skill from repeated real-world work. This skill is for authoring and iterating on skills themselves. |
 

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "modern-web-guidance",
+  "description": "Web UI を書く前に、Google の Modern Web Guidance から最新の Web プラットフォーム作法 (Baseline 準拠) を引いてくるプラグイン。",
+  "version": "0.1.0",
+  "author": {
+    "name": "fukuda-yuki",
+    "url": "https://github.com/fukuda-yuki"
+  },
+  "repository": "https://github.com/fukuda-yuki/copilot-tips",
+  "keywords": [
+    "web",
+    "html",
+    "css",
+    "javascript",
+    "accessibility",
+    "performance"
+  ],
+  "extensions": {
+    "io.github.fukuda-yuki.copilot-tips": {
+      "skills": [
+        "./skills/modern-web-guidance/"
+      ]
+    }
+  }
+}

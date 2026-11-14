@@ -30,6 +30,17 @@
       "version": "0.1.0"
     },
     {
+      "name": "modern-web-guidance",
+      "source": {
+        "source": "github",
+        "repo": "fukuda-yuki/copilot-tips",
+        "path": "plugins/modern-web-guidance",
+        "ref": "marketplace"
+      },
+      "description": "Web UI を書く前に、Google の Modern Web Guidance から最新の Web プラットフォーム作法 (Baseline 準拠) を引いてくるプラグイン。",
+      "version": "0.1.0"
+    },
+    {
       "name": "skill-creator",
       "source": {
         "source": "github",
