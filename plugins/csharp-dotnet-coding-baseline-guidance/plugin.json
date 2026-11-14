@@ -1,0 +1,19 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "csharp-dotnet-coding-baseline-guidance",
+  "description": "C# / .NET の日常実装で、命名、非同期、例外、DI、層分離の基準線を日本語で揃えるプラグイン。",
+  "version": "0.1.0",
+  "author": {
+    "name": "fukuda-yuki",
+    "url": "https://github.com/fukuda-yuki"
+  },
+  "repository": "https://github.com/fukuda-yuki/copilot-tips",
+  "extensions": {
+    "io.github.fukuda-yuki.copilot-tips": {
+      "skills": [
+        "./skills/csharp-dotnet-coding-baseline-guidance/"
+      ],
+      "agents": []
+    }
+  }
+}

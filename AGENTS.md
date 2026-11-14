@@ -1,64 +1,133 @@
-# Repository Guidelines
+# AGENTS.md
 
-## Project Structure & Module Organization
+このリポジトリで作業する AI エージェント (Claude Code / GitHub Copilot など) と人間のメンテナー向けの手引きです。作業前に必ず読んでください。
 
-This repository is a documentation and plugin marketplace project, not a runnable MVC app. Keep primary content in:
+## このリポジトリの目的
 
-- `docs/`: numbered guidance pages such as `01-overview.md` and `60-agent-plugins.md`
-- `skills/`: staged branch source of truth for reusable skill packages
-- `agents/`: staged branch source of truth for reusable agent definitions
-- `instructions/`: staged branch source of truth for reusable instruction templates
-- `plugins/<plugin-id>/`: declarative plugin packages on `staged`, each with `README.md` and `.github/plugin/plugin.json`
-- `.github/plugin/marketplace.json`: marketplace manifest that lists every published plugin and version
-- `examples/`: sample CI workflow templates and small supporting examples
-- `memory-bank/`: planning notes; avoid changing these unless the task explicitly targets them
+`github/awesome-copilot` のように、Skill / Agent / Instruction を **プラグインとして誰でも簡単にインストールできるカタログ** を提供します。利用者は次のようなコマンド 1 つで自分の環境に導入できます。
 
-## Build, Test, and Development Commands
+```bash
+copilot plugin marketplace add fukuda-yuki/copilot-tips
+copilot plugin install <plugin-name>@copilot-tips
+```
 
-There is no repo-wide `.NET` build. The `dotnet` commands under `examples/workflows/dotnet-test-playwright.yml` are templates for downstream projects.
+オーナーはツールの内部に詳しくありません。説明は日本語で平易に行い、気づいた改善は積極的に提案してください。
 
-- `npm run plugin:validate`: verify `staged` keeps declarative plugin manifests and no materialized plugin payloads
-- `npm run plugin:generate-marketplace`: regenerate `.github/plugin/marketplace.json` from plugin manifests
-- `npx markdownlint-cli2 README.md "docs/**/*.md" "examples/**/*.md" "agents/**/*.md" "skills/**/*.md" "instructions/**/*.md" "plugins/**/*.md"`: mirror the Markdown lint job
-- `powershell -File scripts/check-links.ps1 README.md "docs/**/*.md" "examples/**/*.md" "agents/**/*.md" "skills/**/*.md" "instructions/**/*.md" "plugins/**/*.md"`: mirror the link-check job locally
-- `git diff --check`: catch trailing whitespace and malformed patch output before opening a PR
+## 最重要ルール: ブランチの役割
 
-If you edit `skills/**/SKILL.md`, `agents/**/*.md`, or `instructions/**/*.md`, run the same lint and PowerShell link checks against those files manually.
+| ブランチ | 役割 | 編集してよいか |
+| --- | --- | --- |
+| `staged` | **正本**。すべての実装・編集はここに入れる | Pull Request 経由で可 |
+| `main` | **配布専用**。GitHub Actions が `staged` から自動生成する | **不可** (人もエージェントも直接編集しない) |
 
-## Coding Style & Naming Conventions
+- 作業ブランチは必ず `staged` から切り、Pull Request は必ず `staged` 宛てに作る
+- `main` 宛ての Pull Request は `check-pr-target` workflow が失敗させる
+- `main` への直接 push、force-push、`main` の履歴の書き換えはしない
+- `main` は GitHub のデフォルトブランチのままにする。利用者の `marketplace add` や `apm install` がデフォルトブランチを読むため
+- セッション開始時に `main` が checkout されていたら、まず `git fetch origin staged` して `staged` を基準に作業する
 
-Use Markdown headings with short, scannable sections. Keep prose direct and Japanese-first when editing existing docs, while leaving technical identifiers in English. Follow existing filename patterns:
+## 公開の流れ
 
-- docs: numeric prefixes, for example `30-testing-unit.md`
-- plugins, skills, and agents: kebab-case IDs, for example `aspnetcore-mvc-app-guidance`
-- JSON: 2-space indentation
+```text
+作業ブランチ ──PR──> staged ──(Actions: publish.yml)──> main
+                     正本                               配布物
+```
 
-Line length is intentionally flexible because `.markdownlint.jsonc` disables `MD013`.
+1. `staged` 宛ての Pull Request で `validate.yml` が検証・テスト・ビルドの試行を行う
+2. `staged` にマージされると `publish.yml` が `npm run build` で `dist/` を生成する
+3. `dist/` の中身で `main` を丸ごと置き換える commit を積む (履歴は残る。差分が無ければ何もしない)
 
-## Testing Guidelines
+## ディレクトリ構成 (正本 = staged)
 
-Validation is content-focused:
+```text
+skills/<skill-name>/SKILL.md        Skill 本体 (references/ や assets/ を同梱可)
+agents/<agent-name>.agent.md        Copilot 用カスタムエージェント
+instructions/<name>.instructions.md Copilot 用 instruction (プラグインには入らない)
+plugins/<plugin-name>/plugin.json   プラグインの定義 (何を同梱するかの宣言だけ)
+plugins/<plugin-name>/README.md     プラグインの説明
+eng/                                検証・ビルド用スクリプト (Node.js、外部依存なし)
+.github/workflows/                  validate / publish / check-pr-target
+.github/skills/                     このリポジトリでの作業を助ける Skill (配布対象外)
+```
 
-- run Markdown lint and link checks for any docs, examples, or plugin text changes
-- when editing `plugins/**/.github/plugin/plugin.json`, verify the plugin version matches `.github/plugin/marketplace.json`
-- when changing plugin composition, run `npm run plugin:validate` and `npm run plugin:generate-marketplace`
-- when changing docs navigation or Pages settings under `docs/`, ensure the Jekyll build in `.github/workflows/docs-quality.yml` still passes
-- when editing workflow examples, keep placeholder paths and `dotnet` steps internally consistent
+中身 (Skill や Agent) は必ずリポジトリ直下の `skills/` `agents/` に 1 つだけ置き、プラグインはそれを **参照するだけ** にします。同じ Skill を複数のプラグインに入れても正本は 1 つです。
 
-## Agent Execution Guidelines
+### plugin.json の書き方
 
-When working in this repository, prefer aggressive delegation and iterative refinement over one-pass analysis:
+[Agent Plugins 仕様 1.0.0](https://github.com/agentplugins/agent-plugins-spec) に従います。同梱内容はこのリポジトリ専用の名前空間 `io.github.fukuda-yuki.copilot-tips` に宣言します。
 
-- proactively delegate tasks that can be offloaded to Subagents, especially external research such as investigating `https://github.com/github/awesome-copilot`
-- do not stop after initial analysis or research; continue through evaluation, revision, and rework as many times as needed to improve the result
-- treat time as a secondary constraint; prioritize completeness, verification, and quality of the final output
-- when Subagents return results, review their output critically and refine or rerun follow-up work if the findings are incomplete or weak
+```json
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "my-plugin",
+  "description": "このプラグインで何ができるか",
+  "version": "0.1.0",
+  "author": { "name": "fukuda-yuki", "url": "https://github.com/fukuda-yuki" },
+  "repository": "https://github.com/fukuda-yuki/copilot-tips",
+  "extensions": {
+    "io.github.fukuda-yuki.copilot-tips": {
+      "skills": ["./skills/my-skill/"],
+      "agents": ["./agents/my-agent.md"]
+    }
+  }
+}
+```
 
-## Commit & Pull Request Guidelines
+- `name` はフォルダ名と一致させる (小文字英数字とハイフン)
+- `skills` は `./skills/<skill-name>/`、`agents` は `./agents/<agent-name>.md` (元ファイルは `agents/<agent-name>.agent.md`)
+- 内容を変えたら `version` を上げる。利用者側の更新検知に使われる
+- `plugins/<plugin-name>/` の中に `skills/` などの実体を置かない。配布時に Actions が生成する
 
-Recent history favors short, imperative subjects, sometimes with a scope prefix such as `docs:`. Prefer formats like:
+## 配布物の構成 (main、自動生成)
 
-- `docs: add skill creator checklist`
-- `Refactor plugin structure for marketplace distribution`
+```text
+README.md                              カタログ一覧とインストール方法
+AGENTS.md / CLAUDE.md                  「ここは編集禁止、staged へ」という案内
+.github/plugin/marketplace.json        Copilot CLI / VS Code 用マーケットプレイス定義
+.claude-plugin/marketplace.json        Claude Code 用マーケットプレイス定義
+plugins/<plugin-name>/plugin.json      仕様準拠の manifest (同梱宣言は除去済み)
+plugins/<plugin-name>/skills/...       実体化された Skill
+plugins/<plugin-name>/com.github.copilot/agents/...  実体化された Agent
+skills/ agents/ instructions/          単体取得用のコピー (apm install など)
+```
 
-PRs should state the affected area (`docs`, `plugins`, `examples`, or marketplace metadata), summarize user-visible changes, and link any related issue. Include rendered screenshots only when a README or documentation layout change is easier to review visually.
+`eng/` や `.github/workflows/` などの開発用ファイルは `main` には入りません。
+
+## コマンド
+
+```bash
+npm run validate   # 正本が規約どおりか検証する
+npm test           # 検証 + スクリプトのテスト
+npm run build      # dist/ に配布物を生成する (dist/ は commit しない)
+```
+
+依存パッケージは無いので `npm install` は不要です (Node.js 22 以上)。
+
+## 作業手順
+
+### Skill を追加・変更する
+
+1. `skills/<skill-name>/SKILL.md` を作る。frontmatter の `name` はフォルダ名と同じ、`description` は「いつ使うか」が分かる 1 行にする
+2. 既存プラグインに入れるか、新しい `plugins/<plugin-name>/` (`plugin.json` と `README.md`) を作って宣言する
+3. 変更したプラグインの `version` を上げる
+4. `npm test` と `npm run build` を通し、`dist/plugins/<plugin-name>/` の中身を確認する
+5. `staged` 宛てに Pull Request を作る
+
+### ビルドや検証の仕組みを変える
+
+- `eng/lib.mjs` の `CATALOG` がカタログ名・リポジトリ名・ブランチ名の唯一の定義
+- 配布物の形を変えたら `eng/catalog.test.mjs` とこのファイルの「配布物の構成」も更新する
+- スクリプトは外部依存なしを保つ (publish を単純で壊れにくくするため)
+
+## 規約
+
+- 文章は日本語を基本とし、識別子・コマンド・ファイル名は英語のまま
+- ファイル名・フォルダ名は小文字英数字とハイフン
+- 改行コードは LF (`.gitattributes` で強制)
+- commit メッセージは `docs: ...` `feat: ...` `fix: ...` `chore: ...` のような短い命令形
+
+## 設計の背景
+
+- `awesome-copilot` も「正本ブランチ → Actions → 配布ブランチ」の 2 ブランチ方式。以前は `staged` → `main`、現在は `main` → `marketplace` に名前が変わっている。このリポジトリは、利用者がデフォルトブランチ指定なしでインストールできるよう `staged` → `main` を採用している
+- `awesome-copilot` は正本のプラグインフォルダ内へ実体を書き込むが、このリポジトリは `dist/` へ別出力する。正本に生成物が紛れ込む事故を防ぐため
+- `microsoft/apm` は利用者側のインストーラ。`main` に仕様準拠の `plugins/<name>/plugin.json` と `skills/<name>/SKILL.md` があれば、追加設定なしで `apm install` できる

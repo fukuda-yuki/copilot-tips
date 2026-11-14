@@ -1,0 +1,19 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "aspnetcore-mvc-test-strategy-guidance",
+  "description": "ASP.NET Core MVC の unit test、integration test、Playwright E2E の分担と selector 方針を日本語で整理するプラグイン。",
+  "version": "0.1.0",
+  "author": {
+    "name": "fukuda-yuki",
+    "url": "https://github.com/fukuda-yuki"
+  },
+  "repository": "https://github.com/fukuda-yuki/copilot-tips",
+  "extensions": {
+    "io.github.fukuda-yuki.copilot-tips": {
+      "skills": [
+        "./skills/aspnetcore-mvc-test-strategy-guidance/"
+      ],
+      "agents": []
+    }
+  }
+}

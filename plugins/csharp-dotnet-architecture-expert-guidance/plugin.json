@@ -1,0 +1,21 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "csharp-dotnet-architecture-expert-guidance",
+  "description": "C# / .NET の設計、性能、セキュリティ、EF Core 例外判断を日本語で深く整理するプラグイン。",
+  "version": "0.1.0",
+  "author": {
+    "name": "fukuda-yuki",
+    "url": "https://github.com/fukuda-yuki"
+  },
+  "repository": "https://github.com/fukuda-yuki/copilot-tips",
+  "extensions": {
+    "io.github.fukuda-yuki.copilot-tips": {
+      "skills": [
+        "./skills/csharp-dotnet-architecture-expert-guidance/"
+      ],
+      "agents": [
+        "./agents/csharp-dotnet-expert.md"
+      ]
+    }
+  }
+}
