@@ -109,7 +109,7 @@ Skill ごとの 👍 と感想を集計して GitHub Pages に公開するペー
 2. その日の値を `board-data` ブランチの `history.json` に残す。リアクションには日時が無いので、「今週の増加」と「8 週の推移」はこの記録の差分から出す。`board-data` は Actions だけが更新する
 3. `eng/board.mjs` が `skills/` と `plugins/` を読んで、ランキングと Skill ごとの詳細ページを `dist/board/` に生成し、Pages に公開する
 
-Skill と感想スレッドの対応は、スレッド本文の先頭にある `<!-- copilot-tips-board skill: <skill-name> -->` で取ります。スレッドのタイトルやカテゴリを変えても対応は崩れません。この行は消さないでください。目印は誰でも書けるので、Actions かメンテナー (owner / member / collaborator) が立てたスレッドだけを採用します。作成者は、Skill を同梱するプラグインの `plugin.json` の `author` を出します。インストールのコマンドは README.md の「インストール」と同じもので、ずれるとテストが失敗します。
+Skill と感想スレッドの対応は、スレッド本文の先頭にある `<!-- copilot-tips-board skill: <skill-name> -->` で取ります。スレッドのタイトルやカテゴリを変えても対応は崩れません。この行は消さないでください。Actions が立てたスレッドの本文は、集計のたびに `eng/board-collect.mjs` の `discussionBody` の文面へ戻るので、文面を変えるときはそちらを直します。目印は誰でも書けるので、Actions かメンテナー (owner / member / collaborator) が立てたスレッドだけを採用します。作成者は、Skill を同梱するプラグインの `plugin.json` の `author` を出します。インストールのコマンドは README.md の「インストール」と同じもので、ずれるとテストが失敗します。
 
 感想は書かれたまま Pages に転載されます。不適切な感想は GitHub 上で非表示 (Hide) か削除にしてください。非表示のコメントは集計から外れます。すぐ消したいときは、Actions の「Skill board」を手動で実行します。
 
