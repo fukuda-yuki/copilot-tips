@@ -45,7 +45,7 @@ const REPO_QUERY = `query($owner: String!, $name: String!) {
 /** 感想スレッドとして採用してよい立て主 (メンテナー)。このほか workflow 自身が立てたものも採用する。 */
 const TRUSTED_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 
-const DISCUSSION_FIELDS = `id number title url body viewerDidAuthor authorAssociation category { id }
+const DISCUSSION_FIELDS = `id number title url body viewerDidAuthor authorAssociation
   reactions(content: THUMBS_UP) { totalCount }
   comments(last: ${MAX_COMMENTS}) {
     totalCount
@@ -91,7 +91,6 @@ export function summarize(discussion) {
   return {
     url: discussion.url,
     number: discussion.number,
-    categoryId: discussion.category?.id ?? null,
     up: discussion.reactions.totalCount,
     commentCount: discussion.comments.totalCount - hidden,
     comments: visible.map((c) => ({ url: c.url, body: c.bodyText, createdAt: c.createdAt, author: c.author?.login ?? null })),
@@ -141,7 +140,6 @@ export async function collect({ skills, graphql, owner, name, category = DEFAULT
 
   return {
     generatedAt: now.toISOString(),
-    repoId: repo.id,
     skills: Object.fromEntries(skills.map((s) => [s.name, summarize(bySkill.get(s.name))])),
   };
 }
