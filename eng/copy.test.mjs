@@ -26,8 +26,8 @@ function visibleText(html) {
 function sampleTexts() {
   // Skill の説明や感想は書き手のものなので、ここでは中立な文字で置き換える
   const skills = [
-    { name: "a", description: "x", plugins: ["p"], authors: [{ name: "n", url: "https://example.com" }] },
-    { name: "b", description: "x", plugins: [], authors: [] },
+    { name: "a", description: "x", plugins: ["p"], versions: { p: "1.0.0" }, authors: [{ name: "n", url: "https://example.com" }], published: "2026-01-01T00:00:00Z", updated: "2026-11-13T00:00:00Z" },
+    { name: "b", description: "x", plugins: [], versions: {}, authors: [], published: "2026-11-13T00:00:00Z", updated: "2026-11-13T00:00:00Z" },
   ];
   const stats = {
     generatedAt: "2026-11-14T00:00:00Z",

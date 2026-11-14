@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 // Skill ボード (GitHub Pages) の静的ページを生成する。外部依存なし。
 //  - Skill の一覧・説明・同梱プラグイン・作成者は skills/ と plugins/ から読む (新しい Skill は自動で載る)
+//  - 公開日と最終更新日は skills/<name>/ の git の履歴から読む (浅い clone では読まない)
 //  - 👍 と感想は board-collect.mjs が集計した stats.json から読む
 //  - 出力は dist/board/ (正本には書かない)
 //
 // 使い方: node eng/board.mjs [--stats <stats.json>] [--out <dir>]
 //   stats を省略すると、数字が 0 のページを作る (見た目の確認用)。
 //   環境変数 BOARD_SHOW_AUTHORS=false で、Skill の作成者と感想を書いた人の名前を伏せる。
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,13 +18,36 @@ import { readPlugins } from "./generate.mjs";
 const TIME_ZONE = "Asia/Tokyo";
 /** 履歴 (history.json) を残す日数。 */
 const KEEP_DAYS = 70;
+/** 公開・更新から何日のあいだ New / Updated を付けるか。 */
+export const FRESH_DAYS = 14;
 
 // ---------------------------------------------------------------------------
 // データ
 // ---------------------------------------------------------------------------
 
-/** ボードに載せる Skill の一覧。説明は SKILL.md、同梱先と作成者は plugin.json から読む。 */
-export function boardSkills(root = ROOT) {
+/** git hook の中から呼ばれても root のリポジトリを読むよう、hook が渡す GIT_DIR などを外す。 */
+export const gitEnv = (env = process.env) => Object.fromEntries(Object.entries(env).filter(([k]) => !/^GIT_(DIR|INDEX_FILE|WORK_TREE|PREFIX|COMMON_DIR|OBJECT_DIRECTORY)$/.test(k)));
+const git = (root, args) => execFileSync("git", ["-C", root, ...args], { encoding: "utf8", env: gitEnv(), stdio: ["ignore", "pipe", "ignore"] }).trim();
+
+/**
+ * Skill の公開日 (最初の commit) と最終更新日 (最後の commit) を ISO 形式で返す。
+ * main に入った日を取るため、マージ commit をたどる (--first-parent)。
+ * git が無い・浅い clone で履歴が欠けている場合は null (誤って全部を New にしないため)。
+ */
+export function skillDates(root, name) {
+  try {
+    if (git(root, ["rev-parse", "--is-shallow-repository"]) !== "false") return { published: null, updated: null };
+    const lines = git(root, ["log", "--first-parent", "--format=%cI", "--", `skills/${name}`]).split("\n").filter(Boolean);
+    // commit ごとに時差の書き方が違うので、UTC にそろえて文字列のまま比べられるようにする
+    const utc = (iso) => (iso ? new Date(iso).toISOString() : null);
+    return { published: utc(lines.at(-1)), updated: utc(lines[0]) };
+  } catch {
+    return { published: null, updated: null };
+  }
+}
+
+/** ボードに載せる Skill の一覧。説明は SKILL.md、同梱先と作成者は plugin.json、日付は git の履歴から読む。 */
+export function boardSkills(root = ROOT, dates = (name) => skillDates(root, name)) {
   const catalog = loadCatalog(root);
   const plugins = readPlugins(catalog);
   return catalog.skills.map((skill) => {
@@ -36,7 +61,9 @@ export function boardSkills(root = ROOT) {
       name: skill.name,
       description: readFrontmatter(skill.file)?.description ?? "",
       plugins: inPlugins.map((p) => p.name),
+      versions: Object.fromEntries(inPlugins.map((p) => [p.name, p.version])),
       authors,
+      ...dates(skill.name),
     };
   });
 }
@@ -76,6 +103,15 @@ function shiftDay(day, days) {
   const d = new Date(`${day}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
+}
+
+/** 公開から FRESH_DAYS 日以内なら "new"、それより前に公開して FRESH_DAYS 日以内に更新したなら "updated"。 */
+export function freshness(row, now, days = FRESH_DAYS) {
+  const since = shiftDay(dayOf(now), -days);
+  const within = (iso) => Boolean(iso) && dayOf(new Date(iso)) > since;
+  if (within(row.published)) return "new";
+  if (within(row.updated)) return "updated";
+  return null;
 }
 
 /** 集計結果をその日の値として履歴に記録する (同じ日に何度実行しても 1 件)。古い記録は捨てる。 */
@@ -139,7 +175,7 @@ export function navGroups(rows) {
   return groups;
 }
 
-export const STYLE = `/* 表が主役の簡素な文書。カード・タイル・グラフ・Web フォント・飾りの色は使わない。色はリンクの青だけ。 */
+export const STYLE = `/* 表が主役の簡素な文書。カード・タイル・グラフ・Web フォント・飾りの色は使わない。色はリンクの青だけ (New / Updated の印も同じ青)。 */
 :root {
   color-scheme: light dark;
   --bg: #ffffff; --ink: #1a1a1a; --sub: #4d4d4d; --muted: #626264; --line: #949494; --link: #0017c1; --code: #f2f2f2;
@@ -197,6 +233,11 @@ td.up { font-weight: 700; }
 td.act { white-space: nowrap; font-size: 0.875rem; padding-right: 0; }
 td.act a { display: block; }
 .skill { font-family: var(--mono); font-size: 1.125rem; font-weight: 700; overflow-wrap: anywhere; }
+.tag { margin-left: 8px; padding: 1px 8px; vertical-align: 2px; border: 1px solid var(--link); border-radius: 999px;
+  font-size: 0.75rem; font-weight: 700; line-height: 1.5; letter-spacing: 0.04em; white-space: nowrap; color: var(--link); }
+.tag.new { color: var(--bg); background: var(--link); }
+h1 .tag { margin-left: 12px; vertical-align: middle; }
+td.date { white-space: nowrap; font-size: 0.875rem; color: var(--sub); }
 .sub { display: block; font-size: 0.875rem; color: var(--sub); margin-top: 4px; max-width: 34em; text-wrap: pretty; }
 
 .actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 24px 0; }
@@ -210,9 +251,11 @@ dt { flex: 0 0 7em; font-size: 0.875rem; color: var(--sub); }
 dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 
 .tabs { display: flex; flex-wrap: wrap; gap: 0 8px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
-.tabs button { font: inherit; color: var(--ink); background: none; border: 0; border-bottom: 4px solid transparent; min-height: 48px; padding: 8px 16px; cursor: pointer; }
-.tabs button[aria-selected="true"] { color: var(--link); font-weight: 700; border-bottom-color: var(--link); }
+.tabs button, .sort button { font: inherit; color: var(--ink); background: none; border: 0; border-bottom: 4px solid transparent; min-height: 48px; padding: 8px 16px; cursor: pointer; }
+.tabs button[aria-selected="true"], .sort button[aria-pressed="true"] { color: var(--link); font-weight: 700; border-bottom-color: var(--link); }
 .tabbed .panel h3 { display: none; }
+.tabs[hidden], .sort[hidden] { display: none; }
+.sort { display: flex; gap: 0 8px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
 .cmd { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; background: var(--code); padding: 16px; margin-bottom: 12px; }
 pre { font-family: var(--mono); font-size: 0.875rem; line-height: 1.8; margin: 0; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; align-self: center; }
 .copy { font: inherit; font-size: 0.875rem; font-weight: 700; min-height: 44px; padding: 6px 16px; white-space: nowrap; cursor: pointer;
@@ -234,6 +277,7 @@ pre { font-family: var(--mono); font-size: 0.875rem; line-height: 1.8; margin: 0
   table { table-layout: fixed; }
   th, td { padding-right: 12px; }
   td.n, th.n { font-size: 1rem; width: 4.5em; }
+  td.date, th.date { display: none; }
   .sub { max-width: 100%; }
 }
 `;
@@ -256,6 +300,28 @@ if (tabs) {
   tabs.hidden = false;
   document.documentElement.classList.add("tabbed");
   show(buttons.some((b) => b.dataset.tool === saved) ? saved : buttons[0].dataset.tool);
+}
+const sort = document.querySelector(".sort");
+if (sort) {
+  const tbody = document.querySelector("tbody");
+  const rows = [...tbody.rows];
+  const buttons = [...sort.querySelectorAll("button")];
+  const order = {
+    up: () => rows,
+    updated: () => [...rows].sort((a, b) => (b.dataset.updated || "").localeCompare(a.dataset.updated || "")),
+  };
+  const show = (key) => {
+    buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.sort === key)));
+    tbody.append(...order[key]());
+  };
+  let saved = null;
+  try { saved = localStorage.getItem("sort"); } catch {}
+  buttons.forEach((b) => b.addEventListener("click", () => {
+    show(b.dataset.sort);
+    try { localStorage.setItem("sort", b.dataset.sort); } catch {}
+  }));
+  sort.hidden = false;
+  show(order[saved] ? saved : "up");
 }
 document.querySelectorAll("button[data-copy]").forEach((b) => b.addEventListener("click", async () => {
   const text = document.getElementById(b.dataset.copy).textContent;
@@ -295,15 +361,20 @@ ${body}
 `;
 }
 
+const TAGS = { new: "New", updated: "Updated" };
+const tag = (fresh) => (fresh ? `<span class="tag ${fresh}">${TAGS[fresh]}</span>` : "");
+const dayOrBlank = (iso) => (iso ? dayOf(new Date(iso)) : "");
+
 export function renderIndex(rows, { generatedAt }) {
   const body = rows.map((r) => {
     const act = r.url
       ? `<a href="${esc(r.url)}">いいねを送る</a><a href="${esc(r.url)}">感想を書く</a>`
       : "";
-    return `      <tr>
-        <td><a class="skill" href="skills/${esc(r.name)}/">${esc(r.name)}</a><span class="sub">${esc(shortDescription(r.description))}</span></td>
+    return `      <tr data-updated="${esc(r.updated ?? "")}">
+        <td><a class="skill" href="skills/${esc(r.name)}/">${esc(r.name)}</a>${tag(freshness(r, generatedAt))}<span class="sub">${esc(shortDescription(r.description))}</span></td>
         <td class="n up">${r.up}</td>
         <td class="n">${r.commentCount}</td>
+        <td class="date">${esc(dayOrBlank(r.updated))}</td>
         <td class="act">${act}</td>
       </tr>`;
   }).join("\n");
@@ -313,6 +384,10 @@ export function renderIndex(rows, { generatedAt }) {
     base: "",
     groups: navGroups(rows),
     body: `<h1>Skill</h1>
+<div class="sort" role="group" aria-label="並び順" hidden>
+<button type="button" data-sort="up" aria-pressed="true">いいね順</button>
+<button type="button" data-sort="updated" aria-pressed="false">更新順</button>
+</div>
 <div class="scroll">
   <table>
     <thead>
@@ -320,6 +395,7 @@ export function renderIndex(rows, { generatedAt }) {
         <th>Skill</th>
         <th class="n">いいね</th>
         <th class="n">感想</th>
+        <th class="date">更新日</th>
         <th></th>
       </tr>
     </thead>
@@ -336,11 +412,14 @@ export function renderSkill(row, { generatedAt, showAuthors, groups }) {
   const { repo, sourceBranch } = CATALOG;
   const facts = [];
   if (row.plugins.length > 0) {
-    facts.push(["プラグイン", row.plugins.map((p) => `<a class="mono" href="https://github.com/${repo}/tree/${sourceBranch}/plugins/${esc(p)}">${esc(p)}</a>`).join("、")]);
+    const version = (p) => (row.versions?.[p] ? ` <span class="mono">v${esc(row.versions[p])}</span>` : "");
+    facts.push(["プラグイン", row.plugins.map((p) => `<a class="mono" href="https://github.com/${repo}/tree/${sourceBranch}/plugins/${esc(p)}">${esc(p)}</a>${version(p)}`).join("、")]);
   }
   if (showAuthors && row.authors.length > 0) {
     facts.push(["作成者", row.authors.map((a) => (a.url ? `<a href="${esc(a.url)}">${esc(a.name)}</a>` : esc(a.name))).join("、")]);
   }
+  if (row.published) facts.push(["公開日", esc(dayOf(new Date(row.published)))]);
+  if (row.updated) facts.push(["最終更新日", esc(dayOf(new Date(row.updated)))]);
   if (row.installs !== null && row.installs !== undefined) {
     facts.push(["npx skills", `${row.installs} 回 <span class="small">(<a href="https://skills.sh/${repo}/${esc(row.name)}">skills.sh</a> 調べ。他の入れ方の分は含まない)</span>`]);
   }
@@ -387,7 +466,7 @@ ${comments.map((c) => `<div class="voice">
     base: "../../",
     current: row.name,
     groups,
-    body: `<h1 class="mono">${esc(row.name)}</h1>
+    body: `<h1><span class="mono">${esc(row.name)}</span>${tag(freshness(row, generatedAt))}</h1>
 <p>${esc(row.description)}</p>
 ${actions}
 <dl>
