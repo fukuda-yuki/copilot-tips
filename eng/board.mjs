@@ -139,16 +139,25 @@ export function navGroups(rows) {
 
 export const STYLE = `/* 表が主役の簡素な文書。カード・タイル・グラフ・Web フォント・飾りの色は使わない。色はリンクの青だけ。 */
 :root {
+  color-scheme: light dark;
   --bg: #ffffff; --ink: #1a1a1a; --sub: #4d4d4d; --muted: #626264; --line: #949494; --link: #0017c1; --code: #f2f2f2;
   --text: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", Meiryo, system-ui, sans-serif;
   --mono: "Noto Sans Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
-  color-scheme: light;
 }
-@media (prefers-color-scheme: dark) { :root {
-  --bg: #1a1a1a; --ink: #f2f2f2; --sub: #cccccc; --muted: #b3b3b3; --line: #767676; --link: #9db7f9; --code: #333333; color-scheme: dark } }
+@supports (color: light-dark(#ffffff, #000000)) {
+  :root {
+    --bg: light-dark(#ffffff, #1a1a1a);
+    --ink: light-dark(#1a1a1a, #f2f2f2);
+    --sub: light-dark(#4d4d4d, #cccccc);
+    --muted: light-dark(#626264, #b3b3b3);
+    --line: light-dark(#949494, #767676);
+    --link: light-dark(#0017c1, #9db7f9);
+    --code: light-dark(#f2f2f2, #333333);
+  }
+}
 
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--text); font-size: 16px; line-height: 1.7; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--text); font-size: 1rem; line-height: 1.7; }
 a { color: var(--link); text-underline-offset: 3px; }
 :focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
 .mono { font-family: var(--mono); }
@@ -156,11 +165,12 @@ a { color: var(--link); text-underline-offset: 3px; }
 .top { border-bottom: 1px solid var(--ink); }
 .bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 24px;
   padding-left: max(24px, env(safe-area-inset-left, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px)); }
-.site { font-size: 20px; font-weight: 700; color: var(--ink); text-decoration: none; }
+.site { font-size: 1.25rem; font-weight: 700; color: var(--ink); text-decoration: none; }
 
 .layout { display: flex; align-items: flex-start; max-width: 1280px; }
-.side { flex: 0 0 248px; padding: 32px 24px; font-size: 14px; }
-.side h2 { font-size: 14px; font-weight: 700; margin: 0; padding: 6px 8px; }
+.side { flex: 0 0 248px; padding: 32px 24px; font-size: 0.875rem;
+  position: sticky; top: 0; max-height: 100vh; overflow-y: auto; }
+.side h2 { font-size: 0.875rem; font-weight: 700; margin: 0; padding: 6px 8px; }
 .side ul { list-style: none; margin: 0 0 20px; padding: 0; }
 .side li a { display: block; padding: 9px 8px 9px 24px; font-family: var(--mono); color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
 .side li a:hover { text-decoration: underline; }
@@ -168,24 +178,24 @@ a { color: var(--link); text-underline-offset: 3px; }
 main { flex: 1 1 0; min-width: 0; padding: 40px 24px 64px 32px; border-left: 1px solid var(--line); min-height: calc(100vh - 66px); }
 .body { max-width: 800px; }
 
-h1 { font-size: 36px; font-weight: 700; line-height: 1.4; margin: 0 0 24px; overflow-wrap: anywhere; }
-h2 { font-size: 24px; font-weight: 700; line-height: 1.5; margin: 48px 0 16px; }
-h3 { font-size: 16px; font-weight: 700; margin: 24px 0 8px; }
-p { margin: 0 0 12px; }
-.small { font-size: 14px; color: var(--sub); }
-.updated { font-size: 14px; color: var(--muted); margin: 48px 0 0; }
+h1 { font-size: 2.25rem; font-weight: 700; line-height: 1.4; margin: 0 0 24px; overflow-wrap: anywhere; text-wrap: balance; }
+h2 { font-size: 1.5rem; font-weight: 700; line-height: 1.5; margin: 48px 0 16px; text-wrap: balance; }
+h3 { font-size: 1rem; font-weight: 700; margin: 24px 0 8px; text-wrap: balance; }
+p { margin: 0 0 12px; text-wrap: pretty; }
+.small { font-size: 0.875rem; color: var(--sub); }
+.updated { font-size: 0.875rem; color: var(--muted); margin: 48px 0 0; }
 
-.scroll { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
 th, td { text-align: left; padding: 20px 24px 20px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
-thead th { font-size: 14px; font-weight: 700; padding-block: 12px; border-bottom: 2px solid var(--ink); white-space: nowrap; }
-td.n, th.n { text-align: right; white-space: nowrap; font-size: 18px; }
-th.n { font-size: 14px; }
+thead th { position: sticky; top: 0; z-index: 1; background: var(--bg); font-size: 0.875rem; font-weight: 700;
+  padding-block: 12px; border-bottom: 2px solid var(--ink); white-space: nowrap; }
+td.n, th.n { text-align: right; white-space: nowrap; font-size: 1.125rem; }
+th.n { font-size: 0.875rem; }
 td.up { font-weight: 700; }
-td.act { white-space: nowrap; font-size: 14px; padding-right: 0; }
+td.act { white-space: nowrap; font-size: 0.875rem; padding-right: 0; }
 td.act a { display: block; }
-.skill { font-family: var(--mono); font-size: 18px; font-weight: 700; overflow-wrap: anywhere; }
-.sub { display: block; font-size: 14px; color: var(--sub); margin-top: 4px; max-width: 34em; }
+.skill { font-family: var(--mono); font-size: 1.125rem; font-weight: 700; overflow-wrap: anywhere; }
+.sub { display: block; font-size: 0.875rem; color: var(--sub); margin-top: 4px; max-width: 34em; text-wrap: pretty; }
 
 .actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 24px 0; }
 .btn { display: inline-flex; align-items: center; gap: 12px; min-height: 48px; padding: 8px 20px; font-weight: 700; text-decoration: none;
@@ -194,7 +204,7 @@ td.act a { display: block; }
 
 dl { margin: 0; border-top: 1px solid var(--line); }
 dl div { display: flex; flex-wrap: wrap; gap: 4px 24px; padding: 12px 0; border-bottom: 1px solid var(--line); }
-dt { flex: 0 0 7em; font-size: 14px; color: var(--sub); }
+dt { flex: 0 0 7em; font-size: 0.875rem; color: var(--sub); }
 dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 
 .tabs { display: flex; flex-wrap: wrap; gap: 0 8px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
@@ -202,8 +212,8 @@ dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .tabs button[aria-selected="true"] { color: var(--link); font-weight: 700; border-bottom-color: var(--link); }
 .tabbed .panel h3 { display: none; }
 .cmd { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; background: var(--code); padding: 16px; margin-bottom: 12px; }
-pre { font-family: var(--mono); font-size: 14px; line-height: 1.8; margin: 0; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; align-self: center; }
-.copy { font: inherit; font-size: 14px; font-weight: 700; min-height: 44px; padding: 6px 16px; white-space: nowrap; cursor: pointer;
+pre { font-family: var(--mono); font-size: 0.875rem; line-height: 1.8; margin: 0; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; align-self: center; }
+.copy { font: inherit; font-size: 0.875rem; font-weight: 700; min-height: 44px; padding: 6px 16px; white-space: nowrap; cursor: pointer;
   color: var(--link); background: var(--bg); border: 1px solid var(--link); border-radius: 8px; }
 
 .voices { border-top: 1px solid var(--line); }
@@ -213,10 +223,16 @@ pre { font-family: var(--mono); font-size: 14px; line-height: 1.8; margin: 0; mi
 
 @media (max-width: 760px) {
   .layout { flex-direction: column; align-items: stretch; }
-  .side { order: 2; flex: none; border-top: 1px solid var(--line); padding: 24px 16px; }
+  .side { order: 2; flex: none; border-top: 1px solid var(--line); padding: 24px 16px;
+    position: static; max-height: none; overflow: visible; }
   main { flex: none; border-left: 0; padding: 32px 16px 48px; min-height: 0; }
   .bar { padding-inline: 16px; }
-  h1 { font-size: 28px; }
+  h1 { font-size: 1.75rem; }
+  .scroll { overflow-x: auto; }
+  table { table-layout: fixed; }
+  th, td { padding-right: 12px; }
+  td.n, th.n { font-size: 1rem; width: 4.5em; }
+  .sub { max-width: 100%; }
 }
 `;
 
@@ -257,6 +273,7 @@ ${g.skills.map((s) => `<li><a href="${base}skills/${esc(s)}/"${s === current ? '
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>${esc(title)}</title>
 <link rel="stylesheet" href="${base}style.css">
 </head>
