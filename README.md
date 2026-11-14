@@ -39,6 +39,14 @@ apm install fukuda-yuki/copilot-tips/plugins/<plugin-name>#marketplace
 
 APM でプラグインのパスを直接指定するときは、末尾の `#marketplace` (配布ブランチの指定) が必要です。Skill を 1 つだけ入れる場合は `apm install fukuda-yuki/copilot-tips/skills/<skill-name>` で入ります。
 
+### npx skills
+
+`<skill-name>` はカタログの Skill 名に置き換えてください。
+
+```bash
+npx skills add fukuda-yuki/copilot-tips --skill <skill-name>
+```
+
 ## カタログ
 
 <!-- catalog:start (自動生成。手で編集しない) -->
