@@ -75,6 +75,18 @@ test("週ごとの増加は日ごとの記録の差分で求め、記録の無�
   // 週の区切り: 11-14, 11-07, 10-31, 10-24 ... 10-24 時点の記録は無い
   assert.deepEqual(weeklyGains({ days }, "hello", "2026-11-14"), [0, 0, 0, 0, 0, 0, 3, 5]);
   assert.deepEqual(weeklyGains(null, "hello", "2026-11-14"), [0, 0, 0, 0, 0, 0, 0, 0]);
+});
+
+test("動かし始めて 7 日未満でも、最初の記録からの増加を今週の分に数える", () => {
+  const days = {
+    "2026-11-11": { hello: { up: 6, cm: 0 } },
+    "2026-11-12": { hello: { up: 12, cm: 0 } },
+    "2026-11-13": { hello: { up: 18, cm: 0 }, later: { up: 0, cm: 0 } },
+    "2026-11-14": { hello: { up: 24, cm: 0 }, later: { up: 2, cm: 0 } },
+  };
+  assert.deepEqual(weeklyGains({ days }, "hello", "2026-11-14"), [0, 0, 0, 0, 0, 0, 0, 18]);
+  // 途中から載った Skill は、その Skill の最初の記録を始点にする
+  assert.deepEqual(weeklyGains({ days }, "later", "2026-11-14"), [0, 0, 0, 0, 0, 0, 0, 2]);
   assert.equal(sparkline([0, 0, 0, 0, 0, 0, 3, 6]), "▁▁▁▁▁▁▅█");
 });
 
@@ -131,13 +143,14 @@ test("集計データが無くてもページを作れる (dist/board に出力)
 function fakeGitHub({ discussions = [], enabled = true } = {}) {
   const calls = [];
   let next = 100;
-  const node = (n, skill, up, comments = []) => ({
+  const node = (n, skill, up, comments = [], by = "bot") => ({
     id: `D${n}`, number: n, title: `t${n}`, url: `https://github.com/x/y/discussions/${n}`,
+    viewerDidAuthor: by === "bot", authorAssociation: by === "owner" ? "OWNER" : "NONE",
     body: skill ? `${discussionMarker(skill)}\n本文` : "関係ないスレッド",
     reactions: { totalCount: up },
     comments: { totalCount: comments.length, nodes: comments },
   });
-  const all = discussions.map((d) => node(d.number, d.skill, d.up, d.comments));
+  const all = discussions.map((d) => node(d.number, d.skill, d.up, d.comments, d.by));
   const graphql = async (query, variables) => {
     calls.push({ query, variables });
     if (query.includes("createDiscussion")) {
@@ -191,6 +204,20 @@ test("感想スレッドの無い Skill にはスレッドを自動で作る", a
   assert.ok(created[0].variables.body.startsWith(discussionMarker("new-skill")));
   assert.equal(result.skills["new-skill"].up, 0);
   assert.equal(result.skills.hello.up, 1);
+});
+
+test("目印があっても、workflow とメンテナー以外が立てたスレッドは採用しない", async () => {
+  const { graphql, calls } = fakeGitHub({
+    discussions: [
+      { number: 1, skill: "hello", up: 99, by: "stranger" },
+      { number: 2, skill: "solo", up: 7, by: "owner" },
+    ],
+  });
+  const result = await collect({ skills: [{ name: "hello" }, { name: "solo" }], graphql, owner: "x", name: "y" });
+  assert.equal(calls.filter((c) => c.query.includes("createDiscussion")).length, 1);
+  assert.notEqual(result.skills.hello.number, 1);
+  assert.equal(result.skills.hello.up, 0);
+  assert.equal(result.skills.solo.number, 2);
 });
 
 test("Discussions が無効、またはカテゴリが無ければ分かるように失敗する", async () => {

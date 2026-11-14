@@ -81,24 +81,26 @@ export function recordHistory(history, stats, day, keepDays = 7 * (WEEKS + 2)) {
 
 /**
  * 直近 8 週の、週ごとの 👍 の増加 (古い週から順)。
- * リアクションには日時が無いので、日ごとの記録の差分で求める。記録の無い期間の増加は 0 とする。
+ * リアクションには日時が無いので、日ごとの記録の差分で求める。
+ * 週の始まりの記録が無いとき (動かし始めた週など) は、その Skill の最初の記録を始点にする。
+ * 最初の記録より前の週の増加は 0 とする。
  */
 export function weeklyGains(history, name, day) {
-  const recorded = Object.keys(history?.days ?? {}).sort();
+  const recorded = Object.keys(history?.days ?? {}).sort().filter((d) => history.days[d][name]);
   const valueAt = (d) => {
     let value = null;
     for (const r of recorded) {
       if (r > d) break;
-      const v = history.days[r][name];
-      if (v) value = v.up;
+      value = history.days[r][name].up;
     }
     return value;
   };
+  const first = recorded.length > 0 ? history.days[recorded[0]][name].up : null;
   const gains = [];
   for (let i = WEEKS - 1; i >= 0; i--) {
     const end = valueAt(shiftDay(day, -7 * i));
-    const start = valueAt(shiftDay(day, -7 * (i + 1)));
-    gains.push(end === null || start === null ? 0 : end - start);
+    const start = valueAt(shiftDay(day, -7 * (i + 1))) ?? first;
+    gains.push(end === null ? 0 : end - start);
   }
   return gains;
 }
