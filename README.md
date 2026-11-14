@@ -1,101 +1,64 @@
-# Awesome Copilot JA for .NET MVC
+# copilot-tips
 
-`github/awesome-copilot` の repo 構成に寄せつつ、日本語中心で agent / skill / instruction / plugin を配布する marketplace repo です。ASP.NET Core MVC、C# / .NET、GitHub Copilot bootstrap、shared workflow、テスト品質、GitHub Actions、modernization guidance を plugin 単位で公開します。
+GitHub Copilot などの AI エージェント向けの Skill / Agent / Instruction を、プラグインとして簡単にインストールできる日本語カタログです。
 
-## 目的
+## インストール
 
-- GitHub Copilot 向けの `agents/` `skills/` `instructions/` を repo root に整理する
-- `plugins/` では install 単位の declarative package を管理する
-- GitHub Pages では `docs/` をそのまま公開し、必要な resource を discovery できるようにする
-- `staged` を編集用、`main` を publish 用の branch として使い分ける
+`<plugin-name>` は下の [カタログ](#カタログ) にあるプラグイン名に置き換えてください。
 
-## ディレクトリ構成
+### GitHub Copilot CLI
+
+```bash
+copilot plugin marketplace add fukuda-yuki/copilot-tips
+copilot plugin install <plugin-name>@copilot-tips
+```
+
+### VS Code (GitHub Copilot)
+
+`settings.json` の `chat.plugins.marketplaces` に `"fukuda-yuki/copilot-tips"` を追加し、拡張機能ビューで `@agentPlugins` を検索してインストールします。
+
+### Claude Code
 
 ```text
-repo-root/
-├─ agents/
-│  └─ *.agent.md
-├─ skills/
-│  └─ <skill-id>/
-│     ├─ SKILL.md
-│     ├─ references/
-│     └─ assets/
-├─ instructions/
-│  └─ *.instructions.md
-├─ plugins/
-│  └─ <plugin-id>/
-│     ├─ .github/plugin/plugin.json
-│     └─ README.md
-├─ .github/
-│  ├─ plugin/marketplace.json
-│  └─ workflows/
-├─ docs/
-└─ website/  # legacy implementation, not the active Pages source
+/plugin marketplace add fukuda-yuki/copilot-tips
+/plugin install <plugin-name>@copilot-tips
 ```
 
-- `agents/`, `skills/`, `instructions/` が `staged` の正本です
-- `plugins/<plugin-id>/.github/plugin/plugin.json` は、どの skill / agent を同梱するかを宣言します
-- `main` への publish 時に `eng/materialize-plugins.mjs` が plugin 配下へ配布物を生成します
-- GitHub Pages は `main:/docs` を source にする前提です
+### APM (Agent Package Manager)
 
-## 運用モデル
-
-| branch | 役割 |
-| --- | --- |
-| `staged` | 編集用の正本。plugin は宣言型 manifest のみを持つ |
-| `main` | publish workflow が生成した配布 branch。plugin 配下に materialized payload を含む |
-
-workflow の役割:
-
-- [`.github/workflows/docs-quality.yml`](.github/workflows/docs-quality.yml): `staged` の lint / link / Jekyll build validation
-- [`.github/workflows/check-plugin-structure.yml`](.github/workflows/check-plugin-structure.yml): plugin directory が declarative layout を保っているか確認
-- [`.github/workflows/check-pr-target.yml`](.github/workflows/check-pr-target.yml): `main` 宛て PR を reject
-- [`.github/workflows/publish.yml`](.github/workflows/publish.yml): `staged` push から materialized `main` を publish
-
-## 主な plugin
-
-| Plugin | 含まれる resource |
-| --- | --- |
-| `csharp-dotnet-coding-baseline-guidance` | `csharp-dotnet-coding-baseline-guidance` |
-| `csharp-dotnet-architecture-expert-guidance` | `csharp-dotnet-architecture-expert-guidance`, `csharp-dotnet-expert` |
-| `aspnetcore-mvc-app-guidance` | `aspnetcore-mvc-app-guidance`, `aspnetcore-mvc-guide` |
-| `aspnetcore-mvc-test-strategy-guidance` | `aspnetcore-mvc-test-strategy-guidance` |
-| `dotnet-playwright-ci-guidance` | `dotnet-playwright-ci-guidance` |
-| `github-actions-delivery-policy-guidance` | `github-actions-delivery-policy-guidance` |
-| `github-actions-workflow-spec-guidance` | `github-actions-workflow-spec-guidance` |
-| `github-copilot-repo-bootstrap-guidance` | `github-copilot-repo-bootstrap-guidance` |
-| `memory-bank-shared-workflow-guidance` | `memory-bank-shared-workflow-guidance` |
-| `behavior-first-test-integrity-guidance` | `behavior-first-test-integrity-guidance`, `polyglot-test-agent` |
-| `dotnet-modernization-guidance` | `dotnet-modernization-slice-guidance`, `dotnet-modernization-socratic-mentoring`, `modernization-modernizer`, `sensei-modernization-mentor` |
-| `custom-agent-creator-guidance` | `custom-agent-creator` |
-
-## ローカル検証
-
-```powershell
-npm run plugin:validate
-npm run plugin:generate-marketplace
-npx markdownlint-cli2 README.md "docs/**/*.md" "examples/**/*.md" "agents/**/*.md" "skills/**/*.md" "instructions/**/*.md" "plugins/**/*.md"
-powershell -File scripts/check-links.ps1 README.md "docs/**/*.md" "examples/**/*.md" "agents/**/*.md" "skills/**/*.md" "instructions/**/*.md" "plugins/**/*.md"
-git diff --check
+```bash
+apm install fukuda-yuki/copilot-tips/plugins/<plugin-name>#marketplace
 ```
 
-Jekyll build は GitHub Actions の `docs-quality` で検証します。local で preview したい場合は、Ruby / Bundler を用意したうえで `docs/` を Jekyll として起動してください。
+APM でプラグインのパスを直接指定するときは、末尾の `#marketplace` (配布ブランチの指定) が必要です。Skill を 1 つだけ入れる場合は `apm install fukuda-yuki/copilot-tips/skills/<skill-name>` で入ります。
 
-publish 出力をローカルで確認したい場合は、作業ツリーではなく別 clone か一時 worktree で `npm run plugin:materialize` を実行してください。`staged` の作業ツリーには materialized `plugins/*/skills` と `plugins/*/agents` を残しません。
+## カタログ
 
-## 読み順
+<!-- catalog:start (自動生成。手で編集しない) -->
 
-- [Home](docs/index.md)
-- [Overview](docs/01-overview.md)
-- [Agent Plugins](docs/60-agent-plugins.md)
-- [GitHub Pages Catalog](docs/70-github-pages-catalog.md)
-- [Custom Agents](docs/README.agents.md)
-- [Modernization Mentoring](docs/70-modernization-mentoring.md)
-- [GitHub Copilot Starter](docs/71-github-copilot-starter.md)
-- [Source Map](docs/90-source-map.md)
+### プラグイン (1)
 
-## 利用側の導線
+| プラグイン | 説明 | 同梱物 |
+| --- | --- | --- |
+| [`skill-creator`](plugins/skill-creator) | Agent Skill を新しく作る・既存の Skill を見直す・description を改善するための手引きをまとめたプラグイン。 | skill: `skill-creator` |
 
-end-user は marketplace URL を `chat.plugins.marketplaces` に登録し、`@agentPlugins` から install します。maintainer や advanced user が source checkout を直接試す場合だけ、materialize 済み plugin directory を `chat.pluginLocations` に登録してください。
+### Skill (1)
 
-公開 metadata は [`.github/plugin/marketplace.json`](.github/plugin/marketplace.json) を参照し、公開 docs site は `docs/` と GitHub Pages branch publish で生成します。移行後は repository Settings > Pages を `Deploy from a branch` / `main` / `/docs` に設定してください。
+| Skill | 説明 |
+| --- | --- |
+| [`skill-creator`](skills/skill-creator) | Use this skill when the user wants to create a new GitHub Copilot agent skill, adapt an existing skill, improve a skill's trigger description, review a skill's structure, add validation and evaluation, or extract a reusable skill from repeated real-world work. This skill is for authoring and iterating on skills themselves. |
+
+<!-- catalog:end -->
+
+## 仕組み
+
+```text
+作業ブランチ ──Pull Request──> main ──GitHub Actions──> marketplace
+                               正本 (ここを編集)         配布物 (自動生成・編集禁止)
+```
+
+- 編集はすべて `main` 宛ての Pull Request で行います
+- `main` にマージされると、GitHub Actions がプラグインを配布形式に組み立てて `marketplace` ブランチへ反映します
+- 利用者は `main` を登録するだけで構いません。`main` のマーケットプレイス定義が、各プラグインの取得元として `marketplace` ブランチを指しています
+
+開発のルールと手順は [AGENTS.md](AGENTS.md) にまとめています。

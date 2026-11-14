@@ -1,0 +1,22 @@
+{
+  "name": "copilot-tips",
+  "metadata": {
+    "description": "GitHub Copilot などの AI エージェント向け Skill / Agent / Instruction を、プラグインとして簡単にインストールできる日本語カタログ。"
+  },
+  "owner": {
+    "name": "fukuda-yuki"
+  },
+  "plugins": [
+    {
+      "name": "skill-creator",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/fukuda-yuki/copilot-tips.git",
+        "path": "plugins/skill-creator",
+        "ref": "marketplace"
+      },
+      "description": "Agent Skill を新しく作る・既存の Skill を見直す・description を改善するための手引きをまとめたプラグイン。",
+      "version": "0.1.0"
+    }
+  ]
+}
