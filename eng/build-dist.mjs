@@ -45,7 +45,7 @@ function distAgentGuide() {
 
 \`${distBranch}\` ブランチは、GitHub Actions が \`${sourceBranch}\` ブランチから自動生成した **配布物** です。ここで行った変更は次の公開で上書きされて消えます。
 
-作業は必ず \`${sourceBranch}\` ブランチを基準に行い、\`${sourceBranch}\` の \`AGENTS.md\` に従ってください。Pull Request の宛先も \`${sourceBranch}\` です。
+作業は必ず \`${sourceBranch}\` ブランチを基準に行い、\`${sourceBranch}\` の \`AGENTS.md\` と \`CONTRIBUTING.md\` に従ってください。Pull Request の宛先も \`${sourceBranch}\` です。
 
 リポジトリ: https://github.com/${repo}
 `;
