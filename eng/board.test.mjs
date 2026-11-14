@@ -7,7 +7,7 @@ import { CATALOG, COMPOSITION_NS, PLUGIN_SCHEMA_URL, ROOT } from "./lib.mjs";
 import {
   boardSkills, buildBoard, installGuides, recordHistory, renderBoard, shortDescription, showAuthorsFrom, sparkline, weeklyGains,
 } from "./board.mjs";
-import { collect, discussionBody, discussionMarker } from "./board-collect.mjs";
+import { collect, discussionMarker } from "./board-collect.mjs";
 
 function write(file, text) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -158,10 +158,6 @@ function fakeGitHub({ discussions = [], enabled = true } = {}) {
       all.push(d);
       return { createDiscussion: { discussion: d } };
     }
-    if (query.includes("updateDiscussion")) {
-      all.find((d) => d.id === variables.discussionId).body = variables.body;
-      return { updateDiscussion: { discussion: { id: variables.discussionId } } };
-    }
     if (query.includes("discussionCategories")) {
       return { repository: { id: "R1", hasDiscussionsEnabled: enabled, discussionCategories: { nodes: [{ id: "C1", name: "General" }] } } };
     }
@@ -208,22 +204,6 @@ test("感想スレッドの無い Skill にはスレッドを自動で作る", a
   assert.ok(created[0].variables.body.startsWith(discussionMarker("new-skill")));
   assert.equal(result.skills["new-skill"].up, 0);
   assert.equal(result.skills.hello.up, 1);
-});
-
-test("workflow が立てたスレッドの本文だけを最新の文面にそろえる", async () => {
-  const { graphql, calls } = fakeGitHub({
-    discussions: [
-      { number: 1, skill: "hello", up: 0 },
-      { number: 2, skill: "solo", up: 0, by: "owner" },
-    ],
-  });
-  const skills = [{ name: "hello" }, { name: "solo" }];
-  await collect({ skills, graphql, owner: "x", name: "y" });
-  const updates = calls.filter((c) => c.query.includes("updateDiscussion"));
-  assert.deepEqual(updates.map((c) => c.variables), [{ discussionId: "D1", body: discussionBody("hello") }]);
-  // そろった後は何もしない
-  await collect({ skills, graphql, owner: "x", name: "y" });
-  assert.equal(calls.filter((c) => c.query.includes("updateDiscussion")).length, 1);
 });
 
 test("目印があっても、workflow とメンテナー以外が立てたスレッドは採用しない", async () => {
