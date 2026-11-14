@@ -146,65 +146,85 @@ function formatTime(date) {
   return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
 }
 
-const footer = (generatedAt) => `<p class="muted small" style="margin-top:40px">${esc(formatTime(generatedAt))} 更新</p>`;
+const footer = (generatedAt) => `<p class="muted small footer">${esc(formatTime(generatedAt))} 更新</p>`;
 
 const signed = (n) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "0");
 
 export const STYLE = `/* 表が主役の簡素な文書。カード・タイル・グラフ・Web フォント・飾りの色は使わない。色はリンクの青だけ。 */
 :root {
-  --bg: #ffffff; --ink: #1b1b1b; --muted: #6a6a6a; --line: #d9d9d9; --link: #0a53b0;
+  color-scheme: light dark;
+  --bg: light-dark(#ffffff, #161616);
+  --ink: light-dark(#1b1b1b, #e6e6e6);
+  --muted: light-dark(#6a6a6a, #9c9c9c);
+  --line: light-dark(#d9d9d9, #3a3a3a);
+  --link: light-dark(#0a53b0, #8ab8f5);
+  --tint: rgba(127, 127, 127, 0.09);
+  --tint: color-mix(in oklab, var(--ink) 6%, var(--bg));
   --text: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", Meiryo, system-ui, sans-serif;
   --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
-  color-scheme: light;
 }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #161616; --ink: #e4e4e4; --muted: #9a9a9a; --line: #3a3a3a; --link: #8ab8f5; color-scheme: dark } }
-:root[data-theme="dark"] {
-  --bg: #161616; --ink: #e4e4e4; --muted: #9a9a9a; --line: #3a3a3a; --link: #8ab8f5; color-scheme: dark }
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--text); font-size: 15px; line-height: 1.75;
-  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 32px 64px; }
-main { max-width: 760px; margin: 0 auto; }
-h1 { font-size: 22px; font-weight: 700; margin: 0 0 4px; line-height: 1.4; overflow-wrap: anywhere; }
-h2 { font-size: 15px; font-weight: 700; margin: 40px 0 8px; }
-h3 { font-size: 14px; font-weight: 700; margin: 20px 0 4px; }
-p { margin: 0 0 10px; max-width: 40em; }
+html { scrollbar-color: var(--line) var(--bg); }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--text); font-size: 0.9375rem; line-height: 1.7;
+  -webkit-text-size-adjust: 100%;
+  padding-inline: max(1rem, env(safe-area-inset-left, 0px)) max(1rem, env(safe-area-inset-right, 0px));
+  padding-block: 2.5rem 4rem; }
+main { max-width: 54rem; margin-inline: auto; }
+h1 { font-size: 1.5rem; font-weight: 700; line-height: 1.3; margin: 0 0 0.25rem; letter-spacing: 0.01em;
+  overflow-wrap: anywhere; text-wrap: balance; }
+h2 { font-size: 0.9375rem; font-weight: 700; line-height: 1.4; margin: 2.5rem 0 0.5rem; text-wrap: balance; }
+h3 { font-size: 0.875rem; font-weight: 700; line-height: 1.4; margin: 1.25rem 0 0.25rem; text-wrap: balance; }
+p { margin: 0 0 0.625rem; max-width: 40em; text-wrap: pretty; }
 .muted { color: var(--muted); }
-.small { font-size: 13px; }
+.small { font-size: 0.8125rem; }
 .mono { font-family: var(--mono); }
-a, .linkish { color: var(--link); text-decoration: underline; text-underline-offset: 3px; }
+a, .linkish { color: var(--link); text-decoration: underline; text-decoration-thickness: 0.06em; text-underline-offset: 0.2em; }
+a:hover { text-decoration-thickness: 0.12em; }
 .linkish { font: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
-:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; border-radius: 2px; }
 
-.scroll { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
-th, td { text-align: left; padding: 9px 10px 9px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
-thead th { font-size: 13px; font-weight: 400; color: var(--muted); border-bottom: 1px solid var(--ink); white-space: nowrap; }
+th, td { text-align: left; padding: 0.6rem 0.75rem 0.6rem 0; border-block-end: 1px solid var(--line); vertical-align: top; }
+thead th { position: sticky; top: 0; z-index: 1; background: var(--bg); font-size: 0.8125rem; font-weight: 400;
+  color: var(--muted); border-block-end: 1px solid var(--ink); white-space: nowrap; }
 thead button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+thead button::after { content: "↕"; margin-inline-start: 0.2em; opacity: 0.35; }
 thead button[aria-pressed="true"] { color: var(--ink); font-weight: 700; }
-td.n, th.n { text-align: right; white-space: nowrap; padding-right: 18px; }
-td.rank { color: var(--muted); width: 2em; }
-td.up { font-weight: 700; }
-.skill { font-family: var(--mono); font-size: 15px; overflow-wrap: anywhere; }
-.sub { font-size: 13px; color: var(--muted); display: block; }
-.trend { font-family: var(--mono); letter-spacing: 1px; color: var(--muted); white-space: nowrap; }
+thead button[aria-pressed="true"]::after { content: "↓"; opacity: 0.6; }
+tbody tr:hover { background: var(--tint); }
+td.n, th.n { text-align: right; white-space: nowrap; padding-inline-end: 1.25rem; }
+td.rank { color: var(--muted); width: 2.4em; }
+tbody tr:nth-child(-n + 3) td.rank { color: var(--ink); font-weight: 700; }
+td.up { font-weight: 600; }
+.skill { font-family: var(--mono); font-size: 0.9375rem; overflow-wrap: anywhere; }
+.sub { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+  margin-block-start: 0.15em; font-size: 0.8125rem; line-height: 1.6; color: var(--muted); text-wrap: pretty; }
+.voice-link { display: inline-block; margin-block-start: 0.1em; }
+.trend { font-family: var(--mono); font-size: 0.8125rem; letter-spacing: 0.16em; color: var(--muted); white-space: nowrap; }
 
 dl { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); }
-dt, dd { margin: 0; padding: 9px 0; border-bottom: 1px solid var(--line); }
-dt { font-size: 13px; color: var(--muted); white-space: nowrap; padding-right: 18px; }
+dt, dd { margin: 0; padding-block: 0.6rem; border-block-end: 1px solid var(--line); }
+dt { font-size: 0.8125rem; color: var(--muted); white-space: nowrap; padding-inline-end: 1.25rem; }
 dd { overflow-wrap: anywhere; }
 .voice { white-space: pre-line; }
 
-pre { font-family: var(--mono); font-size: 13px; line-height: 1.6; margin: 0; padding: 8px 0; overflow-x: auto; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-.install-head { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; margin-top: 16px; }
+pre { font-family: var(--mono); font-size: 0.8125rem; line-height: 1.6; margin: 0 0 1rem; padding: 0.6rem 0.8rem;
+  overflow-x: auto; background: var(--tint); border-radius: 0.375rem; }
+.install-head { display: flex; gap: 0.75rem; align-items: baseline; justify-content: space-between; margin-block-start: 0.75rem; }
 .install-head h3 { margin: 0; }
+.footer { margin-block-start: 3rem; }
 
-@media (max-width: 560px) {
+@media (max-width: 44rem) { .scroll { overflow-x: auto; } }
+@media (max-width: 34rem) {
   .trend, th.t { display: none; }
   dl { grid-template-columns: minmax(0, 1fr); }
-  dt { border-bottom: 0; padding-bottom: 0; }
-  dd { padding-top: 2px; }
+  dt { border-block-end: 0; padding-block-end: 0; }
+  dd { padding-block-start: 0.15rem; }
+  body { padding-block: 1.5rem 3rem; }
+  h1 { font-size: 1.25rem; }
 }
 `;
 
@@ -231,6 +251,7 @@ function page({ title, base, body }) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>${esc(title)}</title>
 <link rel="stylesheet" href="${base}style.css">
 </head>
@@ -246,10 +267,10 @@ ${body}
 
 export function renderIndex(rows, { generatedAt }) {
   const body = rows.map((r, i) => {
-    const voice = r.url ? ` <a href="${esc(r.url)}">👍・感想</a>` : "";
+    const voice = r.url ? `<a class="voice-link small" href="${esc(r.url)}">👍・感想</a>` : "";
     return `      <tr data-name="${esc(r.name)}" data-up="${r.up}" data-wk="${r.week}" data-cm="${r.commentCount}">
         <td class="rank">${i + 1}</td>
-        <td><a class="skill" href="skills/${esc(r.name)}/">${esc(r.name)}</a><span class="sub">${esc(shortDescription(r.description))}${voice}</span></td>
+        <td><a class="skill" href="skills/${esc(r.name)}/">${esc(r.name)}</a><span class="sub">${esc(shortDescription(r.description))}</span>${voice}</td>
         <td class="n up">${r.up}</td>
         <td class="n">${signed(r.week)}</td>
         <td class="n">${r.commentCount}</td>
