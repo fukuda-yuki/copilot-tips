@@ -2,7 +2,8 @@
 // Skill ごとの感想スレッド (GitHub Discussions) から 👍 と感想を集計する。外部依存なし。
 //  - 感想スレッドの無い Skill には、スレッドを自動で作る (新しい Skill を公開すると自動で載る)
 //  - Skill とスレッドの対応は、スレッド本文に埋め込んだ目印 (discussionMarker) で取る。
-//    タイトルを書き換えたり、カテゴリを移したりしても対応は崩れない
+//    タイトルを書き換えたり、カテゴリを移したりしても対応は崩れない。
+//    目印は誰でも書けるので、この workflow 自身かメンテナーが立てたスレッドだけを採用する
 //
 // 使い方 (GitHub Actions から実行する):
 //   GITHUB_TOKEN=... GITHUB_REPOSITORY=owner/name \
@@ -44,7 +45,10 @@ const REPO_QUERY = `query($owner: String!, $name: String!) {
   }
 }`;
 
-const DISCUSSION_FIELDS = `id number title url body
+/** 感想スレッドとして採用してよい立て主 (メンテナー)。このほか workflow 自身が立てたものも採用する。 */
+const TRUSTED_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
+
+const DISCUSSION_FIELDS = `id number title url body viewerDidAuthor authorAssociation
   reactions(content: THUMBS_UP) { totalCount }
   comments(last: ${MAX_COMMENTS}) {
     totalCount
@@ -112,6 +116,7 @@ export async function collect({ skills, graphql, owner, name, category = DEFAULT
   do {
     const page = (await graphql(DISCUSSIONS_QUERY, { owner, name, cursor })).repository.discussions;
     for (const d of page.nodes) {
+      if (!d.viewerDidAuthor && !TRUSTED_ASSOCIATIONS.has(d.authorAssociation)) continue;
       const skill = MARKER_PATTERN.exec(d.body ?? "")?.[1];
       // 同じ Skill のスレッドが複数あれば、番号の小さい (先に作られた) ほうを使う
       if (skill && (!bySkill.has(skill) || bySkill.get(skill).number > d.number)) bySkill.set(skill, d);
