@@ -25,7 +25,9 @@ export const FRESH_DAYS = 14;
 // データ
 // ---------------------------------------------------------------------------
 
-const git = (root, args) => execFileSync("git", ["-C", root, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+/** git hook の中から呼ばれても root のリポジトリを読むよう、hook が渡す GIT_DIR などを外す。 */
+export const gitEnv = (env = process.env) => Object.fromEntries(Object.entries(env).filter(([k]) => !/^GIT_(DIR|INDEX_FILE|WORK_TREE|PREFIX|COMMON_DIR|OBJECT_DIRECTORY)$/.test(k)));
+const git = (root, args) => execFileSync("git", ["-C", root, ...args], { encoding: "utf8", env: gitEnv(), stdio: ["ignore", "pipe", "ignore"] }).trim();
 
 /**
  * Skill の公開日 (最初の commit) と最終更新日 (最後の commit) を ISO 形式で返す。

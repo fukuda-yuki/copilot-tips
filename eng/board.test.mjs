@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { CATALOG, COMPOSITION_NS, PLUGIN_SCHEMA_URL, ROOT } from "./lib.mjs";
 import {
-  boardSkills, buildBoard, freshness, installGuides, navGroups, recordHistory, renderBoard, shortDescription, showAuthorsFrom, skillDates,
+  boardSkills, buildBoard, freshness, gitEnv, installGuides, navGroups, recordHistory, renderBoard, shortDescription, showAuthorsFrom, skillDates,
 } from "./board.mjs";
 import { collect, discussionMarker } from "./board-collect.mjs";
 
@@ -51,7 +51,7 @@ test("Skill の説明・同梱プラグイン・作成者を正本から読む",
 test("公開日と最終更新日は main に入った commit の日付から取る", () => {
   const root = fixture();
   const run = (args, date) => execFileSync("git", ["-C", root, ...args], {
-    env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example.com", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@example.com" },
+    env: { ...gitEnv(), GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example.com", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@example.com" },
     stdio: "ignore",
   });
   run(["init", "-q", "-b", "main"], "2026-01-01T00:00:00Z");
@@ -59,8 +59,10 @@ test("公開日と最終更新日は main に入った commit の日付から取
   run(["commit", "-qm", "a"], "2026-01-01T00:00:00Z");
   fs.appendFileSync(path.join(root, "skills/hello/SKILL.md"), "x\n");
   run(["commit", "-qam", "b"], "2026-03-01T00:00:00Z");
-  assert.deepEqual(skillDates(root, "hello"), { published: "2026-01-01T00:00:00+00:00", updated: "2026-03-01T00:00:00+00:00" });
-  assert.deepEqual(skillDates(root, "solo"), { published: "2026-01-01T00:00:00+00:00", updated: "2026-01-01T00:00:00+00:00" });
+  // git の版によって UTC の書き方 (Z / +00:00) が違うので、時刻として比べる
+  const ms = ({ published, updated }) => ({ published: Date.parse(published), updated: Date.parse(updated) });
+  assert.deepEqual(ms(skillDates(root, "hello")), { published: Date.parse("2026-01-01T00:00:00Z"), updated: Date.parse("2026-03-01T00:00:00Z") });
+  assert.deepEqual(ms(skillDates(root, "solo")), { published: Date.parse("2026-01-01T00:00:00Z"), updated: Date.parse("2026-01-01T00:00:00Z") });
   assert.deepEqual(skillDates(root, "none"), { published: null, updated: null });
   assert.deepEqual(skillDates(fixture(), "hello"), { published: null, updated: null }, "git の履歴が無ければ日付を出さない");
 });
