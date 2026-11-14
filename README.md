@@ -39,16 +39,19 @@ APM でプラグインのパスを直接指定するときは、末尾の `#mark
 
 <!-- catalog:start (自動生成。手で編集しない) -->
 
-### プラグイン (1)
+### プラグイン (2)
 
 | プラグイン | 説明 | 同梱物 |
 | --- | --- | --- |
+| [`doctor`](plugins/doctor) | Copilot に読ませている指示ファイルや Skill を点検するプラグイン。設定の健康診断 (copilot-doctor) と、古い書き方・矛盾を見つけるプロンプト監査 (prompt-audit) を同梱。 | skill: `copilot-doctor`<br>skill: `prompt-audit` |
 | [`skill-creator`](plugins/skill-creator) | Agent Skill を新しく作る・既存の Skill を見直す・description を改善するための手引きをまとめたプラグイン。 | skill: `skill-creator` |
 
-### Skill (1)
+### Skill (3)
 
 | Skill | 説明 |
 | --- | --- |
+| [`copilot-doctor`](skills/copilot-doctor) | GitHub Copilot のカスタマイズ一式 (custom instructions、AGENTS.md、prompt file、Skill、カスタムエージェント) の健康診断をする。読み込まれない・壊れているファイル、常に読み込まれて重い指示、重複や矛盾、コードから分かるだけの記述を見つけ、修正案を出して同意を得てから直す。「Copilot の設定を診断して」「doctor」「instructions を整理・軽量化したい」「Skill が呼ばれない」などの依頼で使う。 |
+| [`prompt-audit`](skills/prompt-audit) | プロンプト資産 (copilot-instructions.md、*.instructions.md、AGENTS.md、prompt file、Skill、カスタムエージェント、システムプロンプト、ツール説明) を監査し、古いモデル向けの書き方・現状と食い違う記述・ファイル間の矛盾を見つけて、根拠付きのレポートと修正案 (diff) を出す。「プロンプトを監査して」「instructions を見直して」「prompt audit」「カスタム指示が効かない・古い」などの依頼で使う。 |
 | [`skill-creator`](skills/skill-creator) | Use this skill when the user wants to create a new GitHub Copilot agent skill, adapt an existing skill, improve a skill's trigger description, review a skill's structure, add validation and evaluation, or extract a reusable skill from repeated real-world work. This skill is for authoring and iterating on skills themselves. |
 
 <!-- catalog:end -->
