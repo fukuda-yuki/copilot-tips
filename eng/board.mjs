@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// Skill 評判ボード (GitHub Pages) の静的ページを生成する。外部依存なし。
+// Skill ボード (GitHub Pages) の静的ページを生成する。外部依存なし。
 //  - Skill の一覧・説明・同梱プラグイン・作成者は skills/ と plugins/ から読む (新しい Skill は自動で載る)
-//  - 👍 と感想は board-collect.mjs が集計した stats.json、推移は history.json から読む
+//  - 👍 と感想は board-collect.mjs が集計した stats.json から読む
 //  - 出力は dist/board/ (正本には書かない)
 //
-// 使い方: node eng/board.mjs [--stats <stats.json>] [--history <history.json>] [--out <dir>]
-//   stats / history を省略すると、数字が 0 のページを作る (見た目の確認用)。
+// 使い方: node eng/board.mjs [--stats <stats.json>] [--out <dir>]
+//   stats を省略すると、数字が 0 のページを作る (見た目の確認用)。
 //   環境変数 BOARD_SHOW_AUTHORS=false で、Skill の作成者と感想を書いた人の名前を伏せる。
 import fs from "node:fs";
 import path from "node:path";
@@ -14,8 +14,8 @@ import { ROOT, CATALOG, loadCatalog, readFrontmatter } from "./lib.mjs";
 import { readPlugins } from "./generate.mjs";
 
 const TIME_ZONE = "Asia/Tokyo";
-const WEEKS = 8;
-const BLOCKS = "▁▂▃▄▅▆▇█";
+/** 履歴 (history.json) を残す日数。 */
+const KEEP_DAYS = 70;
 
 // ---------------------------------------------------------------------------
 // データ
@@ -42,20 +42,27 @@ export function boardSkills(root = ROOT) {
 }
 
 /**
- * インストール方法。README.md の「インストール」と同じコマンドを、プラグイン名・Skill 名を埋めて返す。
+ * インストール方法をツールごとに返す。README.md の「インストール」と同じコマンドに、プラグイン名・Skill 名を埋める。
  * README との一致は board.test.mjs が確認している。
  */
 export function installGuides(skill) {
   const { repo, name: catalog, distBranch } = CATALOG;
+  const perPlugin = (lines) => skill.plugins.map((plugin) => ({ plugin, lines: lines(plugin) }));
   const guides = [];
-  for (const plugin of skill.plugins) {
+  if (skill.plugins.length > 0) {
     guides.push(
-      { tool: "GitHub Copilot CLI", plugin, lines: [`copilot plugin marketplace add ${repo}`, `copilot plugin install ${plugin}@${catalog}`] },
-      { tool: "Claude Code", plugin, lines: [`/plugin marketplace add ${repo}`, `/plugin install ${plugin}@${catalog}`] },
-      { tool: "APM", plugin, lines: [`apm install ${repo}/plugins/${plugin}#${distBranch}`] },
+      { id: "copilot", tool: "GitHub Copilot CLI", blocks: perPlugin((p) => [`copilot plugin marketplace add ${repo}`, `copilot plugin install ${p}@${catalog}`]) },
+      {
+        id: "vscode", tool: "VS Code", blocks: [{ lines: [`"chat.plugins.marketplaces": ["${repo}"]`] }],
+        note: `拡張機能ビューで <code class="mono">@agentPlugins</code> を検索し、<span class="mono">${skill.plugins.join("、")}</span> を入れる。`,
+      },
+      { id: "claude", tool: "Claude Code", blocks: perPlugin((p) => [`/plugin marketplace add ${repo}`, `/plugin install ${p}@${catalog}`]) },
     );
   }
-  guides.push({ tool: "APM (Skill 単体)", lines: [`apm install ${repo}/skills/${skill.name}`] });
+  guides.push({
+    id: "apm", tool: "APM",
+    blocks: [...perPlugin((p) => [`apm install ${repo}/plugins/${p}#${distBranch}`]), { skillOnly: true, lines: [`apm install ${repo}/skills/${skill.name}`] }],
+  });
   return guides;
 }
 
@@ -71,7 +78,7 @@ function shiftDay(day, days) {
 }
 
 /** 集計結果をその日の値として履歴に記録する (同じ日に何度実行しても 1 件)。古い記録は捨てる。 */
-export function recordHistory(history, stats, day, keepDays = 7 * (WEEKS + 2)) {
+export function recordHistory(history, stats, day, keepDays = KEEP_DAYS) {
   const days = { ...(history?.days ?? {}) };
   days[day] = Object.fromEntries(Object.entries(stats.skills).map(([name, s]) => [name, { up: s.up, cm: s.commentCount }]));
   const oldest = shiftDay(day, -keepDays);
@@ -79,52 +86,20 @@ export function recordHistory(history, stats, day, keepDays = 7 * (WEEKS + 2)) {
   return { version: 1, days: Object.fromEntries(Object.entries(days).sort(([a], [b]) => a.localeCompare(b))) };
 }
 
-/**
- * 直近 8 週の、週ごとの 👍 の増加 (古い週から順)。
- * リアクションには日時が無いので、日ごとの記録の差分で求める。
- * 週の始まりの記録が無いとき (動かし始めた週など) は、その Skill の最初の記録を始点にする。
- * 最初の記録より前の週の増加は 0 とする。
- */
-export function weeklyGains(history, name, day) {
-  const recorded = Object.keys(history?.days ?? {}).sort().filter((d) => history.days[d][name]);
-  const valueAt = (d) => {
-    let value = null;
-    for (const r of recorded) {
-      if (r > d) break;
-      value = history.days[r][name].up;
-    }
-    return value;
-  };
-  const first = recorded.length > 0 ? history.days[recorded[0]][name].up : null;
-  const gains = [];
-  for (let i = WEEKS - 1; i >= 0; i--) {
-    const end = valueAt(shiftDay(day, -7 * i));
-    const start = valueAt(shiftDay(day, -7 * (i + 1))) ?? first;
-    gains.push(end === null ? 0 : end - start);
-  }
-  return gains;
-}
-
-export function sparkline(values) {
-  const max = Math.max(...values, 1);
-  return values.map((v) => BLOCKS[Math.round(Math.max(v, 0) / max * 7)]).join("");
-}
-
-/** Skill の行に必要な数字をまとめる。集計がまだの Skill は 0 として扱う。 */
-export function boardRows(skills, stats, history, day) {
+/** Skill の行に必要な数字をまとめる。集計がまだの Skill は 0 として扱う。👍 の多い順に並べる。 */
+export function boardRows(skills, stats) {
   return skills.map((skill) => {
     const s = stats?.skills?.[skill.name];
-    const weeks = weeklyGains(history, skill.name, day);
     return {
       ...skill,
       up: s?.up ?? 0,
       commentCount: s?.commentCount ?? 0,
       comments: s?.comments ?? [],
       url: s?.url ?? null,
-      weeks,
-      week: weeks[weeks.length - 1],
+      number: s?.number ?? null,
+      categoryId: s?.categoryId ?? null,
     };
-  }).sort((a, b) => b.up - a.up || b.week - a.week || a.name.localeCompare(b.name));
+  }).sort((a, b) => b.up - a.up || b.commentCount - a.commentCount || a.name.localeCompare(b.name));
 }
 
 // ---------------------------------------------------------------------------
@@ -133,7 +108,7 @@ export function boardRows(skills, stats, history, day) {
 
 const esc = (text) => String(text ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
-/** 表に載せる短い説明 (最初の 1 文、長ければ切る)。全文は詳細ページに出す。 */
+/** 表に載せる短い説明 (最初の 1 文、長ければ切る)。全文は Skill のページに出す。 */
 export function shortDescription(text, max = 80) {
   const first = /^[\s\S]*?(?:。|\.\s|$)/.exec(text.trim())[0].trim();
   return first.length > max ? first.slice(0, max - 1) + "…" : first;
@@ -146,86 +121,152 @@ function formatTime(date) {
   return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
 }
 
-const footer = (generatedAt) => `<p class="muted small" style="margin-top:40px">${esc(formatTime(generatedAt))} 更新</p>`;
+const footer = (generatedAt) => `<p class="updated">${esc(formatTime(generatedAt))} 更新</p>`;
 
-const signed = (n) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "0");
+/** 左の一覧の見出しに使う、プラグインに入っていない Skill のまとまりの名前。 */
+const SOLO = "Skill 単体";
+
+/** 左の一覧。プラグインごとに Skill を並べる。プラグインに入っていない Skill は最後にまとめる。 */
+export function navGroups(rows) {
+  const byName = (a, b) => a.localeCompare(b);
+  const plugins = [...new Set(rows.flatMap((r) => r.plugins))].sort(byName);
+  const groups = plugins.map((plugin) => ({
+    title: plugin,
+    skills: rows.filter((r) => r.plugins.includes(plugin)).map((r) => r.name).sort(byName),
+  }));
+  const solo = rows.filter((r) => r.plugins.length === 0).map((r) => r.name).sort(byName);
+  if (solo.length > 0) groups.push({ title: SOLO, skills: solo });
+  return groups;
+}
 
 export const STYLE = `/* 表が主役の簡素な文書。カード・タイル・グラフ・Web フォント・飾りの色は使わない。色はリンクの青だけ。 */
 :root {
-  --bg: #ffffff; --ink: #1b1b1b; --muted: #6a6a6a; --line: #d9d9d9; --link: #0a53b0;
-  --text: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", Meiryo, system-ui, sans-serif;
-  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  --bg: #ffffff; --ink: #1a1a1a; --sub: #4d4d4d; --muted: #626264; --line: #949494; --link: #0017c1; --code: #f2f2f2;
+  --text: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", Meiryo, system-ui, sans-serif;
+  --mono: "Noto Sans Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
   color-scheme: light;
 }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #161616; --ink: #e4e4e4; --muted: #9a9a9a; --line: #3a3a3a; --link: #8ab8f5; color-scheme: dark } }
-:root[data-theme="dark"] {
-  --bg: #161616; --ink: #e4e4e4; --muted: #9a9a9a; --line: #3a3a3a; --link: #8ab8f5; color-scheme: dark }
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #1a1a1a; --ink: #f2f2f2; --sub: #cccccc; --muted: #b3b3b3; --line: #767676; --link: #9db7f9; --code: #333333; color-scheme: dark } }
 
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--text); font-size: 15px; line-height: 1.75;
-  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 32px 64px; }
-main { max-width: 760px; margin: 0 auto; }
-h1 { font-size: 22px; font-weight: 700; margin: 0 0 4px; line-height: 1.4; overflow-wrap: anywhere; }
-h2 { font-size: 15px; font-weight: 700; margin: 40px 0 8px; }
-h3 { font-size: 14px; font-weight: 700; margin: 20px 0 4px; }
-p { margin: 0 0 10px; max-width: 40em; }
-.muted { color: var(--muted); }
-.small { font-size: 13px; }
-.mono { font-family: var(--mono); }
-a, .linkish { color: var(--link); text-decoration: underline; text-underline-offset: 3px; }
-.linkish { font: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--text); font-size: 16px; line-height: 1.7; }
+a { color: var(--link); text-underline-offset: 3px; }
 :focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+.mono { font-family: var(--mono); }
+
+.top { border-bottom: 1px solid var(--ink); }
+.bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 24px;
+  padding-left: max(24px, env(safe-area-inset-left, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px)); }
+.site { font-size: 20px; font-weight: 700; color: var(--ink); text-decoration: none; }
+
+.layout { display: flex; align-items: flex-start; max-width: 1280px; }
+.side { flex: 0 0 248px; padding: 32px 24px; font-size: 14px; }
+.side h2 { font-size: 14px; font-weight: 700; margin: 0; padding: 6px 8px; }
+.side ul { list-style: none; margin: 0 0 20px; padding: 0; }
+.side li a { display: block; padding: 9px 8px 9px 24px; font-family: var(--mono); color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
+.side li a:hover { text-decoration: underline; }
+.side li a[aria-current="page"] { font-weight: 700; background: var(--code); }
+main { flex: 1 1 0; min-width: 0; padding: 40px 24px 64px 32px; border-left: 1px solid var(--line); min-height: calc(100vh - 66px); }
+.body { max-width: 800px; }
+
+h1 { font-size: 36px; font-weight: 700; line-height: 1.4; margin: 0 0 24px; overflow-wrap: anywhere; }
+h2 { font-size: 24px; font-weight: 700; line-height: 1.5; margin: 48px 0 16px; }
+h3 { font-size: 16px; font-weight: 700; margin: 24px 0 8px; }
+p { margin: 0 0 12px; }
+.small { font-size: 14px; color: var(--sub); }
+.updated { font-size: 14px; color: var(--muted); margin: 48px 0 0; }
 
 .scroll { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
-th, td { text-align: left; padding: 9px 10px 9px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
-thead th { font-size: 13px; font-weight: 400; color: var(--muted); border-bottom: 1px solid var(--ink); white-space: nowrap; }
-thead button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
-thead button[aria-pressed="true"] { color: var(--ink); font-weight: 700; }
-td.n, th.n { text-align: right; white-space: nowrap; padding-right: 18px; }
-td.rank { color: var(--muted); width: 2em; }
+th, td { text-align: left; padding: 20px 24px 20px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+thead th { font-size: 14px; font-weight: 700; padding-block: 12px; border-bottom: 2px solid var(--ink); white-space: nowrap; }
+td.n, th.n { text-align: right; white-space: nowrap; font-size: 18px; }
+th.n { font-size: 14px; }
 td.up { font-weight: 700; }
-.skill { font-family: var(--mono); font-size: 15px; overflow-wrap: anywhere; }
-.sub { font-size: 13px; color: var(--muted); display: block; }
-.trend { font-family: var(--mono); letter-spacing: 1px; color: var(--muted); white-space: nowrap; }
+td.act { white-space: nowrap; font-size: 14px; padding-right: 0; }
+td.act a { display: block; }
+.skill { font-family: var(--mono); font-size: 18px; font-weight: 700; overflow-wrap: anywhere; }
+.sub { display: block; font-size: 14px; color: var(--sub); margin-top: 4px; max-width: 34em; }
 
-dl { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); }
-dt, dd { margin: 0; padding: 9px 0; border-bottom: 1px solid var(--line); }
-dt { font-size: 13px; color: var(--muted); white-space: nowrap; padding-right: 18px; }
-dd { overflow-wrap: anywhere; }
-.voice { white-space: pre-line; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 24px 0; }
+.btn { display: inline-flex; align-items: center; gap: 12px; min-height: 48px; padding: 8px 20px; font-weight: 700; text-decoration: none;
+  color: var(--link); border: 2px solid var(--link); border-radius: 8px; font-variant-numeric: tabular-nums; }
+.btn:hover { text-decoration: underline; }
 
-pre { font-family: var(--mono); font-size: 13px; line-height: 1.6; margin: 0; padding: 8px 0; overflow-x: auto; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-.install-head { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; margin-top: 16px; }
-.install-head h3 { margin: 0; }
+dl { margin: 0; border-top: 1px solid var(--line); }
+dl div { display: flex; flex-wrap: wrap; gap: 4px 24px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+dt { flex: 0 0 7em; font-size: 14px; color: var(--sub); }
+dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 
-@media (max-width: 560px) {
-  .trend, th.t { display: none; }
-  dl { grid-template-columns: minmax(0, 1fr); }
-  dt { border-bottom: 0; padding-bottom: 0; }
-  dd { padding-top: 2px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 0 8px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+.tabs button { font: inherit; color: var(--ink); background: none; border: 0; border-bottom: 4px solid transparent; min-height: 48px; padding: 8px 16px; cursor: pointer; }
+.tabs button[aria-selected="true"] { color: var(--link); font-weight: 700; border-bottom-color: var(--link); }
+.tabbed .panel h3 { display: none; }
+.cmd { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; background: var(--code); padding: 16px; margin-bottom: 12px; }
+pre { font-family: var(--mono); font-size: 14px; line-height: 1.8; margin: 0; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; align-self: center; }
+.copy { font: inherit; font-size: 14px; font-weight: 700; min-height: 44px; padding: 6px 16px; white-space: nowrap; cursor: pointer;
+  color: var(--link); background: var(--bg); border: 1px solid var(--link); border-radius: 8px; }
+
+.voices { border-top: 1px solid var(--line); }
+.voice { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.voice p { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
+.send { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-top: 16px; }
+/* giscus が読み込めたら、ページ内の部品に切り替える。読み込めない間は GitHub へのリンクと転載した感想を出す */
+html:not(.giscus-on) .giscus { height: 0; overflow: hidden; }
+.giscus-on .voices, .giscus-on .send { display: none; }
+
+@media (max-width: 760px) {
+  .layout { flex-direction: column; align-items: stretch; }
+  .side { order: 2; flex: none; border-top: 1px solid var(--line); padding: 24px 16px; }
+  main { flex: none; border-left: 0; padding: 32px 16px 48px; min-height: 0; }
+  .bar { padding-inline: 16px; }
+  h1 { font-size: 28px; }
 }
 `;
 
-// 並べ替え (index) とコマンドのコピー (詳細ページ)。JS が無くても内容は読める。
-const SCRIPT = `document.querySelectorAll("thead button[data-k]").forEach((b) => b.addEventListener("click", () => {
-  const tbody = document.getElementById("rank");
-  const k = b.dataset.k;
-  const rows = [...tbody.rows].sort((x, y) => y.dataset[k] - x.dataset[k] || y.dataset.up - x.dataset.up || x.dataset.name.localeCompare(y.dataset.name));
-  rows.forEach((r, i) => { r.cells[0].textContent = String(i + 1); });
-  tbody.replaceChildren(...rows);
-  document.querySelectorAll("thead button[data-k]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
-}));
+// 入れ方のタブ、コマンドのコピー、ページ内のいいね・感想 (giscus)。JS が無くても内容は読める。
+const SCRIPT = `const tabs = document.querySelector(".tabs");
+if (tabs) {
+  const buttons = [...tabs.querySelectorAll("button")];
+  const panels = [...document.querySelectorAll(".panel")];
+  const show = (tool) => {
+    buttons.forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tool === tool)));
+    panels.forEach((p) => { p.hidden = p.dataset.tool !== tool; });
+  };
+  let saved = null;
+  try { saved = localStorage.getItem("tool"); } catch {}
+  buttons.forEach((b) => b.addEventListener("click", () => {
+    show(b.dataset.tool);
+    try { localStorage.setItem("tool", b.dataset.tool); } catch {}
+  }));
+  tabs.hidden = false;
+  document.documentElement.classList.add("tabbed");
+  show(buttons.some((b) => b.dataset.tool === saved) ? saved : buttons[0].dataset.tool);
+}
 document.querySelectorAll("button[data-copy]").forEach((b) => b.addEventListener("click", async () => {
   const text = document.getElementById(b.dataset.copy).textContent;
   try { await navigator.clipboard.writeText(text); b.textContent = "コピーしました"; }
   catch { b.textContent = "コピーできませんでした"; }
   setTimeout(() => { b.textContent = "コピー"; }, 2000);
 }));
+if (document.querySelector(".giscus")) addEventListener("message", (e) => {
+  if (e.origin !== "https://giscus.app") return;
+  const discussion = e.data && e.data.giscus && e.data.giscus.discussion;
+  if (!discussion) return;
+  document.documentElement.classList.add("giscus-on");
+  document.querySelectorAll("a[data-voices]").forEach((a) => a.setAttribute("href", "#voices"));
+  const up = discussion.reactions && discussion.reactions.THUMBS_UP && discussion.reactions.THUMBS_UP.count;
+  if (Number.isInteger(up)) document.querySelectorAll("[data-up]").forEach((el) => { el.textContent = String(up); });
+  if (Number.isInteger(discussion.totalCommentCount)) document.querySelectorAll("[data-cm]").forEach((el) => { el.textContent = String(discussion.totalCommentCount); });
+});
 `;
 
-function page({ title, base, body }) {
+function page({ title, base, current, groups, body }) {
+  const nav = groups.map((g) => `<h2>${esc(g.title)}</h2>
+<ul>
+${g.skills.map((s) => `<li><a href="${base}skills/${esc(s)}/"${s === current ? ' aria-current="page"' : ""}>${esc(s)}</a></li>`).join("\n")}
+</ul>`).join("\n");
   return `<!doctype html>
 <html lang="ja">
 <head>
@@ -235,9 +276,15 @@ function page({ title, base, body }) {
 <link rel="stylesheet" href="${base}style.css">
 </head>
 <body>
-<main>
+<header class="top"><div class="bar"><a class="site" href="${base || "./"}">${esc(CATALOG.name)}</a><a href="https://github.com/${CATALOG.repo}">GitHub</a></div></header>
+<div class="layout">
+<nav class="side" aria-label="Skill">
+${nav}
+</nav>
+<main><div class="body">
 ${body}
-</main>
+</div></main>
+</div>
 <script src="${base}board.js"></script>
 </body>
 </html>
@@ -245,35 +292,34 @@ ${body}
 }
 
 export function renderIndex(rows, { generatedAt }) {
-  const body = rows.map((r, i) => {
-    const voice = r.url ? ` <a href="${esc(r.url)}">👍・感想</a>` : "";
-    return `      <tr data-name="${esc(r.name)}" data-up="${r.up}" data-wk="${r.week}" data-cm="${r.commentCount}">
-        <td class="rank">${i + 1}</td>
-        <td><a class="skill" href="skills/${esc(r.name)}/">${esc(r.name)}</a><span class="sub">${esc(shortDescription(r.description))}${voice}</span></td>
+  const body = rows.map((r) => {
+    const act = r.url
+      ? `<a href="skills/${esc(r.name)}/#voices">いいねを送る</a><a href="skills/${esc(r.name)}/#voices">感想を書く</a>`
+      : "";
+    return `      <tr>
+        <td><a class="skill" href="skills/${esc(r.name)}/">${esc(r.name)}</a><span class="sub">${esc(shortDescription(r.description))}</span></td>
         <td class="n up">${r.up}</td>
-        <td class="n">${signed(r.week)}</td>
         <td class="n">${r.commentCount}</td>
-        <td class="trend" aria-label="8 週の 👍 の増加: ${r.weeks.join(", ")}">${sparkline(r.weeks)}</td>
+        <td class="act">${act}</td>
       </tr>`;
   }).join("\n");
 
   return page({
-    title: "Skill 評判ボード",
+    title: CATALOG.name,
     base: "",
-    body: `<h1>Skill 評判ボード</h1>
+    groups: navGroups(rows),
+    body: `<h1>Skill</h1>
 <div class="scroll">
   <table>
     <thead>
       <tr>
-        <th></th>
         <th>Skill</th>
-        <th class="n"><button type="button" data-k="up" aria-pressed="true">👍</button></th>
-        <th class="n"><button type="button" data-k="wk" aria-pressed="false">今週</button></th>
-        <th class="n"><button type="button" data-k="cm" aria-pressed="false">感想</button></th>
-        <th class="t">8 週</th>
+        <th class="n">いいね</th>
+        <th class="n">感想</th>
+        <th></th>
       </tr>
     </thead>
-    <tbody id="rank">
+    <tbody>
 ${body}
     </tbody>
   </table>
@@ -282,68 +328,108 @@ ${footer(generatedAt)}`,
   });
 }
 
-export function renderSkill(row, { generatedAt, showAuthors }) {
+/** ページ内でいいねと感想を送るための giscus の埋め込み。スレッドの番号で対応づける。 */
+function giscusEmbed(row, giscus) {
+  if (!giscus?.repoId || !row.number) return "";
+  const attrs = {
+    "data-repo": giscus.repo,
+    "data-repo-id": giscus.repoId,
+    "data-category-id": row.categoryId ?? "",
+    "data-mapping": "number",
+    "data-term": row.number,
+    "data-reactions-enabled": "1",
+    "data-emit-metadata": "1",
+    "data-input-position": "top",
+    "data-theme": "preferred_color_scheme",
+    "data-lang": "ja",
+  };
+  return `<div class="giscus"></div>
+<script src="https://giscus.app/client.js" ${Object.entries(attrs).map(([k, v]) => `${k}="${esc(v)}"`).join(" ")} crossorigin="anonymous" async></script>`;
+}
+
+export function renderSkill(row, { generatedAt, showAuthors, groups, giscus }) {
   const { repo, sourceBranch } = CATALOG;
-  const facts = [
-    ["👍", String(row.up)],
-    ["今週", signed(row.week)],
-    ["感想", `${row.commentCount} 件`],
-    ["プラグイン", row.plugins.length > 0
-      ? row.plugins.map((p) => `<a class="mono" href="https://github.com/${repo}/tree/${sourceBranch}/plugins/${esc(p)}">${esc(p)}</a>`).join("、")
-      : "なし"],
-  ];
+  const facts = [];
+  if (row.plugins.length > 0) {
+    facts.push(["プラグイン", row.plugins.map((p) => `<a class="mono" href="https://github.com/${repo}/tree/${sourceBranch}/plugins/${esc(p)}">${esc(p)}</a>`).join("、")]);
+  }
   if (showAuthors && row.authors.length > 0) {
     facts.push(["作成者", row.authors.map((a) => (a.url ? `<a href="${esc(a.url)}">${esc(a.name)}</a>` : esc(a.name))).join("、")]);
   }
   facts.push(["ソース", `<a class="mono" href="https://github.com/${repo}/tree/${sourceBranch}/skills/${esc(row.name)}">skills/${esc(row.name)}</a>`]);
 
-  const install = installGuides(row).map((g, i) => `<div class="install-head"><h3>${esc(g.tool)}${g.plugin ? ` <span class="muted small">(${esc(g.plugin)} プラグイン)</span>` : ""}</h3><button class="linkish small" type="button" data-copy="cmd-${i}">コピー</button></div>
-<pre id="cmd-${i}">${g.lines.map(esc).join("\n")}</pre>`).join("\n");
+  const guides = installGuides(row);
+  let n = 0;
+  const panels = guides.map((g) => `<div class="panel" id="panel-${g.id}" data-tool="${g.id}">
+<h3>${esc(g.tool)}</h3>
+${g.blocks.map((b) => {
+    const label = b.skillOnly ? SOLO : row.plugins.length > 1 ? `${b.plugin} プラグイン` : "";
+    const id = `cmd-${n++}`;
+    return `${label ? `<p class="small">${esc(label)}</p>\n` : ""}<div class="cmd"><pre id="${id}">${b.lines.map(esc).join("\n")}</pre><button class="copy" type="button" data-copy="${id}">コピー</button></div>`;
+  }).join("\n")}${g.note ? `\n<p>${g.note}</p>` : ""}
+</div>`).join("\n");
+  const tabs = guides.length > 1
+    ? `<div class="tabs" role="tablist" hidden>
+${guides.map((g) => `<button type="button" role="tab" data-tool="${g.id}" aria-controls="panel-${g.id}" aria-selected="false">${esc(g.tool)}</button>`).join("\n")}
+</div>
+`
+    : "";
 
   const comments = [...row.comments].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const voices = comments.length > 0
-    ? `<dl>
-${comments.map((c) => `  <dt>${esc(dayOf(new Date(c.createdAt)))}${showAuthors && c.author ? `<br>${esc(c.author)}` : ""}</dt>
-  <dd><span class="voice">${esc(c.body)}</span> <a class="small" href="${esc(c.url)}">GitHub</a></dd>`).join("\n")}
-</dl>`
+    ? `<div class="voices">
+${comments.map((c) => `<div class="voice">
+<div class="small">${showAuthors && c.author ? `${esc(c.author)}　` : ""}<a href="${esc(c.url)}">${esc(dayOf(new Date(c.createdAt)))}</a></div>
+<p>${esc(c.body)}</p>
+</div>`).join("\n")}
+</div>`
     : "";
-  const write = row.url
-    ? `<p><a href="${esc(row.url)}">感想を書く・👍 を付ける</a></p>`
+  const actions = row.url
+    ? `<div class="actions">
+<a class="btn" data-voices href="${esc(row.url)}">いいねを送る <span data-up>${row.up}</span></a>
+<a class="btn" data-voices href="${esc(row.url)}">感想を書く <span data-cm>${row.commentCount}</span></a>
+</div>`
+    : "";
+  const send = row.url
+    ? `<p class="send"><a href="${esc(row.url)}">いいねを送る</a><a href="${esc(row.url)}">感想を書く</a></p>`
     : "";
 
   return page({
-    title: `${row.name} - Skill 評判ボード`,
+    title: `${row.name} - ${CATALOG.name}`,
     base: "../../",
-    body: `<p class="small"><a href="../../">Skill 評判ボード</a></p>
-<h1 class="mono">${esc(row.name)}</h1>
+    current: row.name,
+    groups,
+    body: `<h1 class="mono">${esc(row.name)}</h1>
 <p>${esc(row.description)}</p>
+${actions}
 <dl>
-${facts.map(([k, v]) => `  <dt>${k}</dt><dd>${v}</dd>`).join("\n")}
+${facts.map(([k, v]) => `  <div><dt>${k}</dt><dd>${v}</dd></div>`).join("\n")}
 </dl>
 
 <h2 id="install">入れ方</h2>
-${install}${row.plugins.length > 0 ? `
-<h3>VS Code</h3>
-<p><code class="mono">settings.json</code> の <code class="mono">chat.plugins.marketplaces</code> に <code class="mono">"${repo}"</code> を足し、拡張機能ビューの <code class="mono">@agentPlugins</code> から <span class="mono">${row.plugins.map(esc).join("、")}</span> を入れる。</p>` : ""}
+${tabs}${panels}
 
-${write || voices ? `<h2 id="voices">感想</h2>
-${write}
+${row.url ? `<h2 id="voices">感想</h2>
 ${voices}
+${send}
+${giscusEmbed(row, giscus)}
 ` : ""}
 ${footer(generatedAt)}`,
   });
 }
 
 /** ボードのファイル一式を { 相対パス: 内容 } で返す。 */
-export function renderBoard({ skills, stats, history, now = new Date(), showAuthors = true }) {
+export function renderBoard({ skills, stats, now = new Date(), showAuthors = true }) {
   const generatedAt = stats?.generatedAt ? new Date(stats.generatedAt) : now;
-  const rows = boardRows(skills, stats, history, dayOf(generatedAt));
+  const rows = boardRows(skills, stats);
+  const groups = navGroups(rows);
+  const giscus = { repo: CATALOG.repo, repoId: stats?.repoId ?? null };
   const files = {
     "index.html": renderIndex(rows, { generatedAt }),
     "style.css": STYLE,
     "board.js": SCRIPT,
   };
-  for (const row of rows) files[`skills/${row.name}/index.html`] = renderSkill(row, { generatedAt, showAuthors });
+  for (const row of rows) files[`skills/${row.name}/index.html`] = renderSkill(row, { generatedAt, showAuthors, groups, giscus });
   return files;
 }
 
@@ -354,11 +440,10 @@ export function showAuthorsFrom(value) {
 
 const readJsonIfExists = (file) => (file && fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : null);
 
-export function buildBoard({ root = ROOT, statsFile, historyFile, outDir = path.join(root, "dist", "board"), showAuthors = true, now } = {}) {
+export function buildBoard({ root = ROOT, statsFile, outDir = path.join(root, "dist", "board"), showAuthors = true, now } = {}) {
   const files = renderBoard({
     skills: boardSkills(root),
     stats: readJsonIfExists(statsFile),
-    history: readJsonIfExists(historyFile),
     now,
     showAuthors,
   });
@@ -386,11 +471,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const args = parseArgs(process.argv.slice(2));
     const { outDir, files } = buildBoard({
       statsFile: args.stats,
-      historyFile: args.history,
       outDir: args.out ? path.resolve(args.out) : undefined,
       showAuthors: showAuthorsFrom(process.env.BOARD_SHOW_AUTHORS),
     });
-    console.log(`Skill 評判ボードを生成しました: ${path.relative(ROOT, outDir)}/ (${files.length} ファイル)`);
+    console.log(`Skill ボードを生成しました: ${path.relative(ROOT, outDir)}/ (${files.length} ファイル)`);
   } catch (e) {
     console.error(e.message);
     process.exit(1);

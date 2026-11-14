@@ -26,7 +26,7 @@ npm run setup   # git hook を有効にする
 | commit 時 (`commit-msg`) | メッセージが `feat: ...` `fix: ...` `docs: ...` `chore: ...` などで始まるか確認する |
 | push 時 (`pre-push`) | `main` / `marketplace` への直接 push を止め、`version` の上げ忘れを確認する |
 | Pull Request (`validate`) | 検証・テスト・ビルドを実行する。通らないとマージできない |
-| 毎日 09:00 と `main` の更新時 (`board`) | Skill 評判ボードを集計して GitHub Pages に公開する ([下記](#skill-評判ボード)) |
+| 毎日 09:00 と `main` の更新時 (`board`) | Skill ボードを集計して GitHub Pages に公開する ([下記](#skill-ボード)) |
 | Claude Code の操作前 | 生成ファイルの手編集と、hook の回避 (`--no-verify`) を止める |
 
 手動で実行する場合のコマンドです。
@@ -35,7 +35,7 @@ npm run setup   # git hook を有効にする
 npm run validate   # 規約どおりか、生成ファイルが最新か、version を上げ忘れていないか
 npm test           # スクリプトのテスト
 npm run build      # 生成ファイルを更新し、dist/ に配布物を生成する (dist/ は commit しない)
-npm run board      # Skill 評判ボードを dist/board/ に生成する (数字は 0。見た目の確認用)
+npm run board      # Skill ボードを dist/board/ に生成する (数字は 0。見た目の確認用)
 ```
 
 ## ディレクトリ構成
@@ -49,7 +49,7 @@ plugins/<plugin-name>/README.md     プラグインの説明
 .github/plugin/marketplace.json     [生成] Copilot CLI / VS Code 用マーケットプレイス定義
 .claude-plugin/marketplace.json     [生成] Claude Code 用マーケットプレイス定義
 README.md                           「カタログ」の節は [生成]
-eng/                                検証・ビルド・評判ボード用スクリプト
+eng/                                検証・ビルド・ボード用スクリプト
 .githooks/ .claude/                 git hook と Claude Code の hook
 ```
 
@@ -101,13 +101,15 @@ skills/ agents/ instructions/                        単体取得用のコピー
 README.md AGENTS.md CLAUDE.md                        「配布専用・編集は main へ」の案内つき
 ```
 
-## Skill 評判ボード
+## Skill ボード
 
-Skill ごとの 👍 と感想を集計して GitHub Pages に公開するページです。サーバーは持たず、`.github/workflows/board.yml` が次の順に動きます。
+Skill の一覧と、Skill ごとのいいね・感想・入れ方を GitHub Pages に公開するページです。サーバーは持たず、`.github/workflows/board.yml` が次の順に動きます。
 
 1. `eng/board-collect.mjs` が Discussions から、Skill ごとの感想スレッドの 👍 (最初の投稿へのリアクション) とコメントを集計する。スレッドの無い Skill には自動でスレッドを作るので、Skill を `main` に入れるだけでボードに載る
-2. その日の値を `board-data` ブランチの `history.json` に残す。リアクションには日時が無いので、「今週の増加」と「8 週の推移」はこの記録の差分から出す。`board-data` は Actions だけが更新する
-3. `eng/board.mjs` が `skills/` と `plugins/` を読んで、ランキングと Skill ごとの詳細ページを `dist/board/` に生成し、Pages に公開する
+2. その日の値を `board-data` ブランチの `history.json` に残す。リアクションには日時が無く、後から推移を出すにはこの記録が要るため (いまのページでは使っていない)。`board-data` は Actions だけが更新する
+3. `eng/board.mjs` が `skills/` と `plugins/` を読んで、一覧と Skill ごとのページを `dist/board/` に生成し、Pages に公開する
+
+Skill のページでは、[giscus](https://giscus.app/ja) (Discussions を埋め込む無料の部品) でページから離れずにいいねと感想を送れます。リポジトリに [giscus の GitHub App](https://github.com/apps/giscus) を入れておく必要があります。入っていない、または読み込めないときは、感想スレッドへのリンクと、集計時点の感想の転載に切り替わります。
 
 Skill と感想スレッドの対応は、スレッド本文の先頭にある `<!-- copilot-tips-board skill: <skill-name> -->` で取ります。スレッドのタイトルやカテゴリを変えても対応は崩れません。この行は消さないでください。本文の文面 (`eng/board-collect.mjs` の `discussionBody`) は新しく作るスレッドにだけ使われます。Actions の権限では既存のスレッドを書き換えられないので、文面を変えたら既存のスレッドはメンテナーが手で直します。目印は誰でも書けるので、Actions かメンテナー (owner / member / collaborator) が立てたスレッドだけを採用します。作成者は、Skill を同梱するプラグインの `plugin.json` の `author` を出します。インストールのコマンドは README.md の「インストール」と同じもので、ずれるとテストが失敗します。
 

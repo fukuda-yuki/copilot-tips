@@ -1,6 +1,6 @@
 name: Skill board
 
-# Skill ごとの感想スレッド (Discussions) の 👍 と感想を集計し、Skill 評判ボードを GitHub Pages に公開する。
+# Skill ごとの感想スレッド (Discussions) の 👍 と感想を集計し、Skill ボードを GitHub Pages に公開する。
 # 1 日 1 回と、main の Skill / プラグインが変わったときに実行する (新しい Skill は感想スレッドごと自動で載る)。
 # リポジトリ変数 BOARD_ENABLED が true のときだけ動く。準備の手順は CONTRIBUTING.md にある。
 on:
@@ -59,7 +59,7 @@ jobs:
       - name: Build pages
         env:
           BOARD_SHOW_AUTHORS: ${{ vars.BOARD_SHOW_AUTHORS }}
-        run: node eng/board.mjs --stats "${RUNNER_TEMP}/stats.json" --history "${{ steps.data.outputs.dir }}/history.json" --out dist/board
+        run: node eng/board.mjs --stats "${RUNNER_TEMP}/stats.json" --out dist/board
       - name: Save history
         working-directory: ${{ steps.data.outputs.dir }}
         run: |
