@@ -171,8 +171,8 @@ export async function collect({ skills, graphql, owner, name, category = DEFAULT
     generatedAt: now.toISOString(),
     skills: Object.fromEntries(skills.map((s) => {
       const summary = summarize(bySkill.get(s.name));
-      // skills.sh に載っていない Skill は、取得できていれば 0 回として扱う
-      if (installs) summary.installs = installs[s.name] ?? 0;
+      // skills.sh に載っていない Skill はページが無いので、数字もリンクも出さない
+      if (installs && Number.isInteger(installs[s.name])) summary.installs = installs[s.name];
       return [s.name, summary];
     })),
   };

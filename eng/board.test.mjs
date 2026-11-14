@@ -254,12 +254,12 @@ test("skills.sh から取れなければ null を返し、ボードの生成は�
   }
 });
 
-test("インストール数は取れたときだけ Skill のページに出し、載っていない Skill は 0 回にする", async () => {
+test("インストール数は skills.sh に載っている Skill だけ、取れたときに出す", async () => {
   const { graphql } = fakeGitHub({ discussions: [{ number: 2, skill: "hello", up: 1 }, { number: 3, skill: "solo", up: 0 }] });
   const skills = [{ name: "hello" }, { name: "solo" }];
   const withInstalls = await collect({ skills, graphql, owner: "x", name: "y", installs: { hello: 12 } });
   assert.equal(withInstalls.skills.hello.installs, 12);
-  assert.equal(withInstalls.skills.solo.installs, 0);
+  assert.equal("installs" in withInstalls.skills.solo, false);
   const without = await collect({ skills, graphql, owner: "x", name: "y" });
   assert.equal("installs" in without.skills.hello, false);
 
