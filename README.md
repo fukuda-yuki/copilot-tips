@@ -38,6 +38,8 @@ APM でプラグインのパスを直接指定するときは、末尾の `#mark
 
 ### npx skills
 
+[![skills.sh](https://skills.sh/b/fukuda-yuki/copilot-tips)](https://skills.sh/fukuda-yuki/copilot-tips)
+
 `<skill-name>` はカタログの Skill 名に置き換えてください。
 
 ```bash

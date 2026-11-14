@@ -8,7 +8,7 @@ import { CATALOG, COMPOSITION_NS, PLUGIN_SCHEMA_URL, ROOT } from "./lib.mjs";
 import {
   boardSkills, buildBoard, freshness, gitEnv, installGuides, navGroups, recordHistory, renderBoard, shortDescription, showAuthorsFrom, skillDates,
 } from "./board.mjs";
-import { collect, discussionMarker, fetchInstalls } from "./board-collect.mjs";
+import { collect, discussionMarker } from "./board-collect.mjs";
 
 function write(file, text) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -278,48 +278,6 @@ test("Discussions が無効、またはカテゴリが無ければ分かるよ�
     collect({ skills: [{ name: "hello" }], graphql: fakeGitHub().graphql, owner: "x", name: "y", category: "Skill" }),
     /カテゴリ "Skill" がありません/,
   );
-});
-
-/** skills.sh の API の代わり。body が Error なら通信失敗として投げる。 */
-const fakeFetch = (status, body) => async () => {
-  if (body instanceof Error) throw body;
-  return { ok: status >= 200 && status < 300, status, json: async () => body };
-};
-
-test("skills.sh のインストール数は、このリポジトリの Skill の分だけ読む", async () => {
-  const installs = await fetchInstalls({
-    repo: "x/y",
-    fetchImpl: fakeFetch(200, { data: [
-      { source: "x/y", slug: "hello", installs: 12 },
-      { source: "other/repo", slug: "solo", installs: 999 },
-      { source: "x/y", slug: "broken", installs: "many" },
-    ] }),
-  });
-  assert.deepEqual(installs, { hello: 12 });
-});
-
-test("skills.sh から取れなければ null を返し、ボードの生成は止めない", async () => {
-  for (const fetchImpl of [fakeFetch(401, { error: "unauthorized" }), fakeFetch(200, { unexpected: true }), fakeFetch(0, new Error("network"))]) {
-    const logs = [];
-    assert.equal(await fetchInstalls({ repo: "x/y", fetchImpl, log: (m) => logs.push(m) }), null);
-    assert.match(logs[0], /取得できませんでした/);
-  }
-});
-
-test("インストール数は skills.sh に載っている Skill だけ、取れたときに出す", async () => {
-  const { graphql } = fakeGitHub({ discussions: [{ number: 2, skill: "hello", up: 1 }, { number: 3, skill: "solo", up: 0 }] });
-  const skills = [{ name: "hello" }, { name: "solo" }];
-  const withInstalls = await collect({ skills, graphql, owner: "x", name: "y", installs: { hello: 12 } });
-  assert.equal(withInstalls.skills.hello.installs, 12);
-  assert.equal("installs" in withInstalls.skills.solo, false);
-  const without = await collect({ skills, graphql, owner: "x", name: "y" });
-  assert.equal("installs" in without.skills.hello, false);
-
-  const board = boardSkills(fixture());
-  const page = (s) => renderBoard({ skills: board, stats: s })["skills/hello/index.html"];
-  assert.match(page(withInstalls), /12 回/);
-  assert.match(page(withInstalls), /skills\.sh/);
-  assert.doesNotMatch(page(without), /<dt>npx skills<\/dt>/);
 });
 
 test("ボードの公開先はカタログ設定から決まり、README.md の案内と一致する", () => {

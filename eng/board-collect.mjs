@@ -5,9 +5,6 @@
 //    タイトルを書き換えたり、カテゴリを移したりしても対応は崩れない。
 //    目印は誰でも書けるので、この workflow 自身かメンテナーが立てたスレッドだけを採用する
 //
-//  - skills.sh (`npx skills add` の集計サイト) から Skill ごとのインストール数を取る。
-//    取れなければ数字を載せないだけで、ボードの生成は止めない
-//
 // 使い方 (GitHub Actions から実行する):
 //   GITHUB_TOKEN=... GITHUB_REPOSITORY=owner/name \
 //   node eng/board-collect.mjs --out <stats.json> --history <history.json> [--category <name>]
@@ -87,32 +84,6 @@ export function createGraphql(token, endpoint = process.env.GITHUB_GRAPHQL_URL |
   };
 }
 
-export const SKILLS_SH_API = "https://skills.sh/api/v1/skills";
-
-/**
- * skills.sh から、このリポジトリの Skill ごとのインストール数を { skill名: 数 } で返す。
- * 失敗したら (認証を求められた、サイトが落ちている、形が変わった) null を返し、理由を log に出す。
- * 公式の API は Vercel の OIDC トークンを求めると書かれているが、認証なしで返る場合に備えて試す。
- */
-export async function fetchInstalls({ repo = CATALOG.repo, fetchImpl = fetch, log = () => {} } = {}) {
-  const url = `${SKILLS_SH_API}?source=${encodeURIComponent(repo)}&per_page=500`;
-  try {
-    const res = await fetchImpl(url, { headers: { accept: "application/json", "user-agent": `${CATALOG.name}-board` }, signal: AbortSignal.timeout(15000) });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    if (!Array.isArray(json?.data)) throw new Error("data がありません");
-    const installs = {};
-    for (const s of json.data) {
-      if (s?.source === repo && typeof s.slug === "string" && Number.isInteger(s.installs)) installs[s.slug] = s.installs;
-    }
-    log(`skills.sh のインストール数を取得しました: ${Object.keys(installs).length} 件`);
-    return installs;
-  } catch (e) {
-    log(`skills.sh のインストール数は取得できませんでした (${e.message})。ボードには載せません。`);
-    return null;
-  }
-}
-
 /** スレッド 1 つ分の集計。非表示 (minimize) にされたコメントは数えない。 */
 export function summarize(discussion) {
   const visible = discussion.comments.nodes.filter((c) => !c.isMinimized);
@@ -130,7 +101,7 @@ export function summarize(discussion) {
  * 全 Skill の 👍 と感想を集計する。感想スレッドの無い Skill にはスレッドを作る。
  * graphql は (query, variables) => data。テストでは差し替える。
  */
-export async function collect({ skills, graphql, owner, name, category = DEFAULT_CATEGORY, installs = null, now = new Date(), log = () => {} }) {
+export async function collect({ skills, graphql, owner, name, category = DEFAULT_CATEGORY, now = new Date(), log = () => {} }) {
   const repo = (await graphql(REPO_QUERY, { owner, name })).repository;
   if (!repo.hasDiscussionsEnabled) {
     throw new Error(`${owner}/${name} で Discussions が有効になっていません。リポジトリの Settings で有効にしてください。`);
@@ -169,12 +140,7 @@ export async function collect({ skills, graphql, owner, name, category = DEFAULT
 
   return {
     generatedAt: now.toISOString(),
-    skills: Object.fromEntries(skills.map((s) => {
-      const summary = summarize(bySkill.get(s.name));
-      // skills.sh に載っていない Skill はページが無いので、数字もリンクも出さない
-      if (installs && Number.isInteger(installs[s.name])) summary.installs = installs[s.name];
-      return [s.name, summary];
-    })),
+    skills: Object.fromEntries(skills.map((s) => [s.name, summarize(bySkill.get(s.name))])),
   };
 }
 
@@ -189,7 +155,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       owner,
       name,
       category: args.category || process.env.BOARD_CATEGORY || DEFAULT_CATEGORY,
-      installs: await fetchInstalls({ repo: `${owner}/${name}`, log: (m) => console.log(m) }),
       log: (m) => console.log(m),
     });
     const history = fs.existsSync(args.history) ? JSON.parse(fs.readFileSync(args.history, "utf8")) : null;
