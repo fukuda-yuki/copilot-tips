@@ -58,11 +58,11 @@ test("公開日と最終更新日は main に入った commit の日付から取
   run(["add", "."], "2026-01-01T00:00:00Z");
   run(["commit", "-qm", "a"], "2026-01-01T00:00:00Z");
   fs.appendFileSync(path.join(root, "skills/hello/SKILL.md"), "x\n");
-  run(["commit", "-qam", "b"], "2026-03-01T00:00:00Z");
-  // git の版によって UTC の書き方 (Z / +00:00) が違うので、時刻として比べる
-  const ms = ({ published, updated }) => ({ published: Date.parse(published), updated: Date.parse(updated) });
-  assert.deepEqual(ms(skillDates(root, "hello")), { published: Date.parse("2026-01-01T00:00:00Z"), updated: Date.parse("2026-03-01T00:00:00Z") });
-  assert.deepEqual(ms(skillDates(root, "solo")), { published: Date.parse("2026-01-01T00:00:00Z"), updated: Date.parse("2026-01-01T00:00:00Z") });
+  run(["commit", "-qam", "b"], "2026-03-01T09:00:00+09:00");
+  fs.appendFileSync(path.join(root, "skills/solo/SKILL.md"), "x\n");
+  run(["commit", "-qam", "d"], "2026-03-01T05:00:00+00:00");
+  assert.deepEqual(skillDates(root, "hello"), { published: "2026-01-01T00:00:00.000Z", updated: "2026-03-01T00:00:00.000Z" });
+  assert.deepEqual(skillDates(root, "solo"), { published: "2026-01-01T00:00:00.000Z", updated: "2026-03-01T05:00:00.000Z" }, "時差の違う commit も UTC にそろえる");
   assert.deepEqual(skillDates(root, "none"), { published: null, updated: null });
   assert.deepEqual(skillDates(fixture(), "hello"), { published: null, updated: null }, "git の履歴が無ければ日付を出さない");
 });

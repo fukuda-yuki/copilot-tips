@@ -38,7 +38,9 @@ export function skillDates(root, name) {
   try {
     if (git(root, ["rev-parse", "--is-shallow-repository"]) !== "false") return { published: null, updated: null };
     const lines = git(root, ["log", "--first-parent", "--format=%cI", "--", `skills/${name}`]).split("\n").filter(Boolean);
-    return { published: lines.at(-1) ?? null, updated: lines[0] ?? null };
+    // commit ごとに時差の書き方が違うので、UTC にそろえて文字列のまま比べられるようにする
+    const utc = (iso) => (iso ? new Date(iso).toISOString() : null);
+    return { published: utc(lines.at(-1)), updated: utc(lines[0]) };
   } catch {
     return { published: null, updated: null };
   }
@@ -250,6 +252,7 @@ dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .tabs button, .sort button { font: inherit; color: var(--ink); background: none; border: 0; border-bottom: 4px solid transparent; min-height: 48px; padding: 8px 16px; cursor: pointer; }
 .tabs button[aria-selected="true"], .sort button[aria-pressed="true"] { color: var(--link); font-weight: 700; border-bottom-color: var(--link); }
 .tabbed .panel h3 { display: none; }
+.tabs[hidden], .sort[hidden] { display: none; }
 .sort { display: flex; gap: 0 8px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
 .cmd { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; background: var(--code); padding: 16px; margin-bottom: 12px; }
 pre { font-family: var(--mono); font-size: 0.875rem; line-height: 1.8; margin: 0; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; align-self: center; }
