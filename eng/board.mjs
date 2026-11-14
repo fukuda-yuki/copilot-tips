@@ -63,6 +63,7 @@ export function installGuides(skill) {
     id: "apm", tool: "APM",
     blocks: [...perPlugin((p) => [`apm install ${repo}/plugins/${p}#${distBranch}`]), { skillOnly: true, lines: [`apm install ${repo}/skills/${skill.name}`] }],
   });
+  guides.push({ id: "skills", tool: "npx skills", blocks: [{ lines: [`npx skills add ${repo} --skill ${skill.name}`] }] });
   return guides;
 }
 
@@ -96,6 +97,7 @@ export function boardRows(skills, stats) {
       commentCount: s?.commentCount ?? 0,
       comments: s?.comments ?? [],
       url: s?.url ?? null,
+      installs: s?.installs ?? null,
     };
   }).sort((a, b) => b.up - a.up || b.commentCount - a.commentCount || a.name.localeCompare(b.name));
 }
@@ -338,6 +340,9 @@ export function renderSkill(row, { generatedAt, showAuthors, groups }) {
   }
   if (showAuthors && row.authors.length > 0) {
     facts.push(["作成者", row.authors.map((a) => (a.url ? `<a href="${esc(a.url)}">${esc(a.name)}</a>` : esc(a.name))).join("、")]);
+  }
+  if (row.installs !== null && row.installs !== undefined) {
+    facts.push(["npx skills", `${row.installs} 回 <span class="small">(<a href="https://skills.sh/${repo}/${esc(row.name)}">skills.sh</a> 調べ。他の入れ方の分は含まない)</span>`]);
   }
   facts.push(["ソース", `<a class="mono" href="https://github.com/${repo}/tree/${sourceBranch}/skills/${esc(row.name)}">skills/${esc(row.name)}</a>`]);
 

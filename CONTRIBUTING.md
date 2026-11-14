@@ -106,8 +106,9 @@ README.md AGENTS.md CLAUDE.md                        「配布専用・編集は
 Skill の一覧と、Skill ごとのいいね・感想・入れ方を GitHub Pages に公開するページです。サーバーは持たず、`.github/workflows/board.yml` が次の順に動きます。
 
 1. `eng/board-collect.mjs` が Discussions から、Skill ごとの感想スレッドの 👍 (最初の投稿へのリアクション) とコメントを集計する。スレッドの無い Skill には自動でスレッドを作るので、Skill を `main` に入れるだけでボードに載る
-2. その日の値を `board-data` ブランチの `history.json` に残す。リアクションには日時が無く、後から推移を出すにはこの記録が要るため (いまのページでは使っていない)。`board-data` は Actions だけが更新する
-3. `eng/board.mjs` が `skills/` と `plugins/` を読んで、一覧と Skill ごとのページを `dist/board/` に生成し、Pages に公開する
+2. 同じスクリプトが [skills.sh](https://skills.sh/) から、`npx skills add` 経由のインストール数を Skill ごとに取る。公式の API は Vercel の認証を求めるため取れないことがあり、取れなければ数字を出さないだけでボードは作る (理由は Actions のログに出る)。順位には使わない
+3. その日の値を `board-data` ブランチの `history.json` に残す。リアクションには日時が無く、後から推移を出すにはこの記録が要るため (いまのページでは使っていない)。`board-data` は Actions だけが更新する
+4. `eng/board.mjs` が `skills/` と `plugins/` を読んで、一覧と Skill ごとのページを `dist/board/` に生成し、Pages に公開する
 
 いいねと感想は GitHub の感想スレッドで受け付け、ページからはそこへリンクします。ページ内で送れるようにするには訪問者の GitHub トークンを発行する秘密鍵つきのサーバーか第三者の GitHub App が要るので、採っていません。外部のスクリプトを読み込まないことはテストが確かめます。
 
