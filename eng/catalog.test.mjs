@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { COMPOSITION_NS, PLUGIN_SCHEMA_URL, readJson } from "./lib.mjs";
 import { validateCatalog } from "./validate.mjs";
+import { README_END, README_START, writeGenerated } from "./generate.mjs";
 import { buildDist } from "./build-dist.mjs";
 
 function write(file, text) {
@@ -27,6 +28,8 @@ function fixture() {
     version: "1.0.0",
     extensions: { [COMPOSITION_NS]: { skills: ["./skills/hello/"], agents: ["./agents/guide.md"] } },
   }));
+  write(path.join(root, "README.md"), `# test\n\n${README_START}\n${README_END}\n`);
+  writeGenerated(root);
   return root;
 }
 
@@ -72,6 +75,14 @@ test("配布物にプラグインが実体化され、同梱宣言は取り除�
     description: "あいさつ一式",
   });
 
+  // 正本側の定義は、取得元として配布ブランチを明示する
+  assert.deepEqual(readJson(path.join(root, ".github/plugin/marketplace.json")).plugins[0].source, {
+    source: "github", repo: "fukuda-yuki/copilot-tips", path: "plugins/hello-pack", ref: "marketplace",
+  });
+  assert.deepEqual(readJson(path.join(root, ".claude-plugin/marketplace.json")).plugins[0].source, {
+    source: "git-subdir", url: "https://github.com/fukuda-yuki/copilot-tips.git", path: "plugins/hello-pack", ref: "marketplace",
+  });
+
   const copilot = readJson(path.join(outDir, ".github/plugin/marketplace.json"));
   assert.deepEqual(copilot.plugins, [
     { name: "hello-pack", source: "plugins/hello-pack", description: "あいさつ一式", version: "1.0.0" },
@@ -81,7 +92,7 @@ test("配布物にプラグインが実体化され、同梱宣言は取り除�
 
   assert.ok(fs.existsSync(path.join(outDir, "skills/hello/SKILL.md")));
   assert.ok(fs.existsSync(path.join(outDir, "instructions/style.instructions.md")));
-  assert.match(fs.readFileSync(path.join(outDir, "README.md"), "utf8"), /hello-pack@copilot-tips/);
+  assert.match(fs.readFileSync(path.join(outDir, "README.md"), "utf8"), /配布専用[\s\S]*plugins\/hello-pack/);
   // 正本は書き換えない
   assert.ok(!fs.existsSync(path.join(root, "plugins/hello-pack/skills")));
 });
@@ -90,4 +101,11 @@ test("検証エラーがあると配布物を生成しない", () => {
   const root = fixture();
   fs.rmSync(path.join(root, "agents/guide.agent.md"));
   assert.throws(() => buildDist({ root, outDir: path.join(root, "dist") }), /検証エラー/);
+});
+
+test("生成ファイルが古いとエラーになる", () => {
+  const root = fixture();
+  const file = path.join(root, "plugins/hello-pack/plugin.json");
+  fs.writeFileSync(file, JSON.stringify({ ...readJson(file), version: "1.0.1" }));
+  assert.match(validateCatalog(root).errors.join("\n"), /marketplace\.json: 内容が古いです/);
 });

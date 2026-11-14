@@ -7,6 +7,7 @@ import {
   ROOT, COMPOSITION_NS, COPILOT_NS, NAME_PATTERN, PLUGIN_SCHEMA_URL, SPEC_FIELDS,
   loadCatalog, readComposition, readFrontmatter, readJson,
 } from "./lib.mjs";
+import { staleGenerated } from "./generate.mjs";
 
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 
@@ -111,6 +112,13 @@ export function validateCatalog(root = ROOT) {
 
   for (const name of skillNames) if (!usedSkills.has(name)) warnings.push(`skills/${name}: どのプラグインにも入っていません`);
   for (const name of agentNames) if (!usedAgents.has(name)) warnings.push(`agents/${name}.agent.md: どのプラグインにも入っていません`);
+
+  // --- 生成ファイルが最新か ---
+  if (errors.length === 0) {
+    for (const file of staleGenerated(root)) {
+      errors.push(`${file}: 内容が古いです。npm run build を実行して commit してください`);
+    }
+  }
 
   return { errors, warnings, catalog };
 }

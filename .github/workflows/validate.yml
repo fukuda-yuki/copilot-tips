@@ -1,9 +1,9 @@
 name: Validate
 
-# staged 宛ての Pull Request を検証する。
+# main 宛ての Pull Request を検証する。
 on:
   pull_request:
-    branches: [staged]
+    branches: [main]
 
 permissions:
   contents: read
@@ -22,3 +22,5 @@ jobs:
         run: npm test
       - name: Build distribution (dry run)
         run: npm run build
+      - name: Check generated files are committed
+        run: git diff --exit-code
