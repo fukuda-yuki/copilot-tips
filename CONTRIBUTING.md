@@ -26,6 +26,7 @@ npm run setup   # git hook を有効にする
 | commit 時 (`commit-msg`) | メッセージが `feat: ...` `fix: ...` `docs: ...` `chore: ...` などで始まるか確認する |
 | push 時 (`pre-push`) | `main` / `marketplace` への直接 push を止め、`version` の上げ忘れを確認する |
 | Pull Request (`validate`) | 検証・テスト・ビルドを実行する。通らないとマージできない |
+| 毎日 09:00 と `main` の更新時 (`board`) | Skill 評判ボードを集計して GitHub Pages に公開する ([下記](#skill-評判ボード)) |
 | Claude Code の操作前 | 生成ファイルの手編集と、hook の回避 (`--no-verify`) を止める |
 
 手動で実行する場合のコマンドです。
@@ -34,6 +35,7 @@ npm run setup   # git hook を有効にする
 npm run validate   # 規約どおりか、生成ファイルが最新か、version を上げ忘れていないか
 npm test           # スクリプトのテスト
 npm run build      # 生成ファイルを更新し、dist/ に配布物を生成する (dist/ は commit しない)
+npm run board      # Skill 評判ボードを dist/board/ に生成する (数字は 0。見た目の確認用)
 ```
 
 ## ディレクトリ構成
@@ -47,7 +49,7 @@ plugins/<plugin-name>/README.md     プラグインの説明
 .github/plugin/marketplace.json     [生成] Copilot CLI / VS Code 用マーケットプレイス定義
 .claude-plugin/marketplace.json     [生成] Claude Code 用マーケットプレイス定義
 README.md                           「カタログ」の節は [生成]
-eng/                                検証・ビルド用スクリプト
+eng/                                検証・ビルド・評判ボード用スクリプト
 .githooks/ .claude/                 git hook と Claude Code の hook
 ```
 
@@ -98,3 +100,31 @@ skills/ agents/ instructions/                        単体取得用のコピー
 .github/plugin/ .claude-plugin/                      同じブランチ内の plugins/<name> を指す定義
 README.md AGENTS.md CLAUDE.md                        「配布専用・編集は main へ」の案内つき
 ```
+
+## Skill 評判ボード
+
+Skill ごとの 👍 と感想を集計して GitHub Pages に公開するページです。サーバーは持たず、`.github/workflows/board.yml` が次の順に動きます。
+
+1. `eng/board-collect.mjs` が Discussions から、Skill ごとの感想スレッドの 👍 (最初の投稿へのリアクション) とコメントを集計する。スレッドの無い Skill には自動でスレッドを作るので、Skill を `main` に入れるだけでボードに載る
+2. その日の値を `board-data` ブランチの `history.json` に残す。リアクションには日時が無いので、「今週の増加」と「8 週の推移」はこの記録の差分から出す。`board-data` は Actions だけが更新する
+3. `eng/board.mjs` が `skills/` と `plugins/` を読んで、ランキングと Skill ごとの詳細ページを `dist/board/` に生成し、Pages に公開する
+
+Skill と感想スレッドの対応は、スレッド本文の先頭にある `<!-- copilot-tips-board skill: <skill-name> -->` で取ります。スレッドのタイトルやカテゴリを変えても対応は崩れません。この行は消さないでください。目印は誰でも書けるので、Actions かメンテナー (owner / member / collaborator) が立てたスレッドだけを採用します。作成者は、Skill を同梱するプラグインの `plugin.json` の `author` を出します。インストールのコマンドは README.md の「インストール」と同じもので、ずれるとテストが失敗します。
+
+感想は書かれたまま Pages に転載されます。不適切な感想は GitHub 上で非表示 (Hide) か削除にしてください。非表示のコメントは集計から外れます。すぐ消したいときは、Actions の「Skill board」を手動で実行します。
+
+### リポジトリ変数 (Settings → Secrets and variables → Actions → Variables)
+
+| 変数 | 既定 | 意味 |
+| --- | --- | --- |
+| `BOARD_ENABLED` | なし (動かない) | `true` のときだけ集計と公開を行う |
+| `BOARD_SHOW_AUTHORS` | `true` | `false` にすると、Skill の作成者と感想を書いた人の名前をページから伏せる |
+| `BOARD_CATEGORY` | `General` | 新しい感想スレッドを作る Discussions のカテゴリ名 |
+
+### 動かし始めるとき
+
+ボードはリポジトリを公開してから動かします (GitHub Free では private リポジトリで Pages を使えず、他の人が 👍 を押せないため)。
+
+1. Settings → General → Features で Discussions を有効にする
+2. Settings → Pages の Source を「GitHub Actions」にする
+3. 変数 `BOARD_ENABLED` を `true` にし、Actions の「Skill board」を手動で実行する (Run workflow)

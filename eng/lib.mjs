@@ -13,6 +13,10 @@ export const CATALOG = {
   description: "GitHub Copilot などの AI エージェント向け Skill / Agent / Instruction を、プラグインとして簡単にインストールできる日本語カタログ。",
   sourceBranch: "main",
   distBranch: "marketplace",
+  /** Skill 評判ボードの集計履歴を置くブランチ。GitHub Actions だけが更新する。 */
+  boardDataBranch: "board-data",
+  /** Skill 評判ボードの公開先 (GitHub Pages)。 */
+  boardUrl: "https://fukuda-yuki.github.io/copilot-tips/",
 };
 
 export const PLUGIN_SCHEMA_URL = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json";

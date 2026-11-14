@@ -1,0 +1,91 @@
+name: Skill board
+
+# Skill ごとの感想スレッド (Discussions) の 👍 と感想を集計し、Skill 評判ボードを GitHub Pages に公開する。
+# 1 日 1 回と、main の Skill / プラグインが変わったときに実行する (新しい Skill は感想スレッドごと自動で載る)。
+# リポジトリ変数 BOARD_ENABLED が true のときだけ動く。準備の手順は CONTRIBUTING.md にある。
+on:
+  schedule:
+    - cron: "0 0 * * *" # 毎日 09:00 (日本時間)
+  push:
+    branches: [main]
+    paths:
+      - "skills/**"
+      - "plugins/**"
+      - "eng/**"
+      - ".github/workflows/board.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: skill-board
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  build:
+    if: vars.BOARD_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 集計履歴を board-data ブランチに残す
+      discussions: write # 感想スレッドを読む・無ければ作る
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: main
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Check out the history branch
+        id: data
+        run: |
+          set -euo pipefail
+          branch="$(node --input-type=module -e 'import { CATALOG } from "./eng/lib.mjs"; console.log(CATALOG.boardDataBranch)')"
+          dir="${RUNNER_TEMP}/board-data"
+          if git fetch --depth=1 origin "${branch}"; then
+            git worktree add --detach "${dir}" FETCH_HEAD
+          else
+            # 履歴ブランチがまだ無い場合は、履歴を持たない空のブランチとして作る
+            git worktree add --detach "${dir}"
+            git -C "${dir}" checkout --orphan "${branch}"
+            git -C "${dir}" rm -rfq .
+          fi
+          echo "branch=${branch}" >> "${GITHUB_OUTPUT}"
+          echo "dir=${dir}" >> "${GITHUB_OUTPUT}"
+      - name: Collect reactions and comments
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BOARD_CATEGORY: ${{ vars.BOARD_CATEGORY }}
+        run: node eng/board-collect.mjs --out "${RUNNER_TEMP}/stats.json" --history "${{ steps.data.outputs.dir }}/history.json"
+      - name: Build pages
+        env:
+          BOARD_SHOW_AUTHORS: ${{ vars.BOARD_SHOW_AUTHORS }}
+        run: node eng/board.mjs --stats "${RUNNER_TEMP}/stats.json" --history "${{ steps.data.outputs.dir }}/history.json" --out dist/board
+      - name: Save history
+        working-directory: ${{ steps.data.outputs.dir }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add history.json
+          if git diff --cached --quiet; then
+            echo "履歴に変更はありません。"
+            exit 0
+          fi
+          git commit -m "chore: record skill board history"
+          git push origin "HEAD:refs/heads/${{ steps.data.outputs.branch }}"
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+        with:
+          path: dist/board
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
