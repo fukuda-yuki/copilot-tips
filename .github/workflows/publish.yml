@@ -1,0 +1,66 @@
+name: Publish to marketplace
+
+# main (正本) に入った変更を、配布形式に変換して marketplace (配布) へ反映する。
+# marketplace を更新するのはこの workflow だけ。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  SOURCE_BRANCH: main
+  DIST_BRANCH: marketplace
+
+concurrency:
+  group: publish-dist
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ env.SOURCE_BRANCH }}
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Run tests
+        run: npm test
+      - name: Build distribution
+        run: npm run build
+      - name: Publish dist/ to the distribution branch
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          source_sha="$(git rev-parse --short HEAD)"
+          worktree_dir="$(mktemp -d)"
+
+          if git fetch origin "${DIST_BRANCH}"; then
+            git worktree add --detach "${worktree_dir}" "origin/${DIST_BRANCH}"
+          else
+            # 配布ブランチがまだ無い場合は、履歴を持たない空のブランチとして作る
+            git worktree add --detach "${worktree_dir}"
+            git -C "${worktree_dir}" checkout --orphan "${DIST_BRANCH}"
+            git -C "${worktree_dir}" rm -rfq .
+          fi
+
+          # dist/ の内容で配布ブランチを丸ごと置き換える (履歴は残し、通常の commit を積む)
+          rsync -a --delete --exclude '.git' dist/ "${worktree_dir}/"
+
+          cd "${worktree_dir}"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "配布物に変更はありません。publish をスキップします。"
+            exit 0
+          fi
+          git commit -m "chore: publish from ${SOURCE_BRANCH}@${source_sha}"
+          git push origin "HEAD:refs/heads/${DIST_BRANCH}"
+          echo "${DIST_BRANCH} へ公開しました (${SOURCE_BRANCH}@${source_sha})"
