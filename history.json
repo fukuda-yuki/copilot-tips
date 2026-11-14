@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "days": {
+    "2026-11-14": {
+      "copilot-doctor": {
+        "up": 0,
+        "cm": 0
+      },
+      "prompt-audit": {
+        "up": 0,
+        "cm": 0
+      },
+      "skill-creator": {
+        "up": 0,
+        "cm": 0
+      }
+    }
+  }
+}
