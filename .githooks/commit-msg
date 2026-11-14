@@ -1,0 +1,11 @@
+#!/bin/sh
+# commit メッセージの 1 行目を `<type>: <内容>` の形にそろえる。
+first_line="$(head -n 1 "$1")"
+case "$first_line" in
+  Merge\ *|Revert\ *|fixup!\ *|squash!\ *) exit 0 ;;
+esac
+if ! printf '%s' "$first_line" | grep -Eq '^(feat|fix|docs|chore|refactor|test|ci|build|perf)(\([a-z0-9-]+\))?!?: .+'; then
+  echo "commit メッセージは 'feat: ...' 'fix: ...' 'docs: ...' 'chore: ...' のように始めてください。" >&2
+  echo "  今の 1 行目: $first_line" >&2
+  exit 1
+fi

@@ -6,7 +6,9 @@
     "node": ">=22"
   },
   "scripts": {
-    "validate": "node eng/validate.mjs",
+    "setup": "git config core.hooksPath .githooks",
+    "validate": "node eng/validate.mjs && node eng/check-versions.mjs",
+    "generate": "node eng/generate.mjs",
     "build": "node eng/build-dist.mjs",
     "test": "node --test"
   }

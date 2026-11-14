@@ -1,0 +1,13 @@
+#!/bin/sh
+# main と marketplace へ直接 push させない。main は Pull Request で、marketplace は GitHub Actions だけが更新する。
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main)
+      echo "main へは直接 push できません。作業ブランチを push して、main 宛ての Pull Request を作ってください。" >&2
+      exit 1 ;;
+    refs/heads/marketplace)
+      echo "marketplace は GitHub Actions が main から自動生成する配布専用ブランチです。変更は main 宛ての Pull Request で行ってください。" >&2
+      exit 1 ;;
+  esac
+done
+cd "$(git rev-parse --show-toplevel)" && node eng/check-versions.mjs
