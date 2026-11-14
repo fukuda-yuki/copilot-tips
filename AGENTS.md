@@ -36,4 +36,4 @@
 - `eng/` のスクリプトは外部依存なしを保つ。publish を単純で壊れにくくするため
 - カタログ名・リポジトリ名・ブランチ名は `eng/lib.mjs` の `CATALOG` だけで定義する
 - 配布物の形を変えたら `eng/catalog.test.mjs` と CONTRIBUTING.md も合わせて更新する
-- LICENSE ファイルは置かない (オーナーの判断)
+- リポジトリ直下に LICENSE ファイルは置かない (オーナーの判断)。他者の著作物を元にした Skill の扱いは CONTRIBUTING.md にある
