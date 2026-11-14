@@ -1,11 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { CATALOG, COMPOSITION_NS, PLUGIN_SCHEMA_URL, ROOT } from "./lib.mjs";
 import {
-  boardSkills, buildBoard, installGuides, navGroups, recordHistory, renderBoard, shortDescription, showAuthorsFrom,
+  boardSkills, buildBoard, freshness, gitEnv, installGuides, navGroups, recordHistory, renderBoard, shortDescription, showAuthorsFrom, skillDates,
 } from "./board.mjs";
 import { collect, discussionMarker } from "./board-collect.mjs";
 
@@ -39,9 +40,39 @@ const stats = {
 
 test("Skill の説明・同梱プラグイン・作成者を正本から読む", () => {
   assert.deepEqual(boardSkills(fixture()), [
-    { name: "hello", description: "あいさつする。丁寧に。", plugins: ["hello-pack"], authors: [{ name: "alice", url: "https://github.com/alice" }] },
-    { name: "solo", description: "単体の <Skill>", plugins: [], authors: [] },
+    {
+      name: "hello", description: "あいさつする。丁寧に。", plugins: ["hello-pack"], versions: { "hello-pack": "1.0.0" },
+      authors: [{ name: "alice", url: "https://github.com/alice" }], published: null, updated: null,
+    },
+    { name: "solo", description: "単体の <Skill>", plugins: [], versions: {}, authors: [], published: null, updated: null },
   ]);
+});
+
+test("公開日と最終更新日は main に入った commit の日付から取る", () => {
+  const root = fixture();
+  const run = (args, date) => execFileSync("git", ["-C", root, ...args], {
+    env: { ...gitEnv(), GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example.com", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@example.com" },
+    stdio: "ignore",
+  });
+  run(["init", "-q", "-b", "main"], "2026-01-01T00:00:00Z");
+  run(["add", "."], "2026-01-01T00:00:00Z");
+  run(["commit", "-qm", "a"], "2026-01-01T00:00:00Z");
+  fs.appendFileSync(path.join(root, "skills/hello/SKILL.md"), "x\n");
+  run(["commit", "-qam", "b"], "2026-03-01T09:00:00+09:00");
+  fs.appendFileSync(path.join(root, "skills/solo/SKILL.md"), "x\n");
+  run(["commit", "-qam", "d"], "2026-03-01T05:00:00+00:00");
+  assert.deepEqual(skillDates(root, "hello"), { published: "2026-01-01T00:00:00.000Z", updated: "2026-03-01T00:00:00.000Z" });
+  assert.deepEqual(skillDates(root, "solo"), { published: "2026-01-01T00:00:00.000Z", updated: "2026-03-01T05:00:00.000Z" }, "時差の違う commit も UTC にそろえる");
+  assert.deepEqual(skillDates(root, "none"), { published: null, updated: null });
+  assert.deepEqual(skillDates(fixture(), "hello"), { published: null, updated: null }, "git の履歴が無ければ日付を出さない");
+});
+
+test("New は公開から 14 日以内、Updated はそれより前に公開して 14 日以内に更新したもの", () => {
+  const now = new Date("2026-11-14T00:00:00Z");
+  assert.equal(freshness({ published: "2026-11-01T00:00:00Z", updated: "2026-11-10T00:00:00Z" }, now), "new");
+  assert.equal(freshness({ published: "2026-10-01T00:00:00Z", updated: "2026-11-10T00:00:00Z" }, now), "updated");
+  assert.equal(freshness({ published: "2026-10-01T00:00:00Z", updated: "2026-10-20T00:00:00Z" }, now), null);
+  assert.equal(freshness({ published: null, updated: null }, now), null);
 });
 
 test("このリポジトリの Skill はすべてボードに載る", () => {
@@ -99,6 +130,27 @@ test("一覧と Skill ごとのページを生成する", () => {
   assert.match(solo, /単体の &lt;Skill&gt;/);
   assert.doesNotMatch(solo, /id="voices"/, "スレッドが無ければ感想の節を出さない");
   assert.doesNotMatch(solo, /copilot plugin install|VS Code|role="tablist"/);
+});
+
+test("一覧に New / Updated と更新日を出し、詳細に公開日・最終更新日・version を出す", () => {
+  const dated = boardSkills(fixture(), (name) => (name === "hello"
+    ? { published: "2026-09-01T00:00:00Z", updated: "2026-11-10T00:00:00Z" }
+    : { published: "2026-11-12T00:00:00Z", updated: "2026-11-12T00:00:00Z" }));
+  const files = renderBoard({ skills: dated, stats });
+  const index = files["index.html"];
+  assert.match(index, /href="skills\/hello\/">hello<\/a><span class="tag updated">Updated</);
+  assert.match(index, /href="skills\/solo\/">solo<\/a><span class="tag new">New</);
+  assert.match(index, /<tr data-updated="2026-11-10T00:00:00Z">/);
+  assert.match(index, /<td class="date">2026-11-10<\/td>/);
+  assert.match(index, /data-sort="updated"/);
+
+  const hello = files["skills/hello/index.html"];
+  assert.match(hello, /公開日<\/dt><dd>2026-09-01</);
+  assert.match(hello, /最終更新日<\/dt><dd>2026-11-10</);
+  assert.match(hello, /hello-pack<\/a> <span class="mono">v1\.0\.0</);
+
+  const undated = renderBoard({ skills: boardSkills(fixture()), stats })["skills/hello/index.html"];
+  assert.doesNotMatch(undated, /公開日|class="tag/);
 });
 
 test("左の一覧はプラグインごとにまとめ、プラグインに入っていない Skill は最後に置く", () => {
