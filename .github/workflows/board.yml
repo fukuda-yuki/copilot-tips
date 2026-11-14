@@ -32,6 +32,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
+          fetch-depth: 0 # Skill の公開日と最終更新日を git の履歴から読む
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
@@ -41,7 +42,7 @@ jobs:
           set -euo pipefail
           branch="$(node --input-type=module -e 'import { CATALOG } from "./eng/lib.mjs"; console.log(CATALOG.boardDataBranch)')"
           dir="${RUNNER_TEMP}/board-data"
-          if git fetch --depth=1 origin "${branch}"; then
+          if git fetch origin "${branch}"; then
             git worktree add --detach "${dir}" FETCH_HEAD
           else
             # 履歴ブランチがまだ無い場合は、履歴を持たない空のブランチとして作る
