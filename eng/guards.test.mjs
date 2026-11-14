@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { COMPOSITION_NS, PLUGIN_SCHEMA_URL, ROOT } from "./lib.mjs";
+import { COMPOSITION_NS, GIT_ENV, PLUGIN_SCHEMA_URL, ROOT } from "./lib.mjs";
 import { checkVersions } from "./check-versions.mjs";
 import { check } from "../.claude/hooks/guard.mjs";
 
@@ -16,7 +16,7 @@ function write(file, text) {
 /** plugin 1 つを commit 済みの git リポジトリを作る。base ブランチが基準。 */
 function repo() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "versions-"));
-  const git = (...args) => execFileSync("git", args, { cwd: root, stdio: "pipe" });
+  const git = (...args) => execFileSync("git", args, { cwd: root, env: GIT_ENV, stdio: "pipe" });
   const manifest = (version) => write(path.join(root, "plugins/pack/plugin.json"), JSON.stringify({
     $schema: PLUGIN_SCHEMA_URL, name: "pack", description: "d", version,
     extensions: { [COMPOSITION_NS]: { skills: ["./skills/hello/"] } },

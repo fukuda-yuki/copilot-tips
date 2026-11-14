@@ -19,6 +19,17 @@
       "version": "0.1.0"
     },
     {
+      "name": "imozuru",
+      "source": {
+        "source": "github",
+        "repo": "fukuda-yuki/copilot-tips",
+        "path": "plugins/imozuru",
+        "ref": "marketplace"
+      },
+      "description": "知らない分野を、用語・人・媒体から芋づる式にたどって原文を集め、抜き書きと詳細レポートにまとめるプラグイン。",
+      "version": "0.1.0"
+    },
+    {
       "name": "skill-creator",
       "source": {
         "source": "github",

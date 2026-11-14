@@ -4,9 +4,9 @@
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ROOT, CATALOG, loadCatalog, readComposition, readJson } from "./lib.mjs";
+import { ROOT, CATALOG, GIT_ENV, loadCatalog, readComposition, readJson } from "./lib.mjs";
 
-const git = (root, ...args) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+const git = (root, ...args) => execFileSync("git", args, { cwd: root, env: GIT_ENV, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
 
 const newer = (a, b) => {
   const [x, y] = [a, b].map((v) => String(v).split("-")[0].split(".").map(Number));
