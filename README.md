@@ -67,4 +67,4 @@ APM でプラグインのパスを直接指定するときは、末尾の `#mark
 - `main` にマージされると、GitHub Actions がプラグインを配布形式に組み立てて `marketplace` ブランチへ反映します
 - 利用者は `main` を登録するだけで構いません。`main` のマーケットプレイス定義が、各プラグインの取得元として `marketplace` ブランチを指しています
 
-開発のルールと手順は [AGENTS.md](AGENTS.md) にまとめています。
+Skill やプラグインを追加・変更する手順は [CONTRIBUTING.md](CONTRIBUTING.md) にあります。
