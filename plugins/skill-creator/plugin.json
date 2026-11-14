@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "custom-agent-creator-guidance",
-  "description": "GitHub Copilot の custom agent を日本語で設計し、下書きし、見直すためのプラグイン。",
-  "version": "0.2.0",
+  "name": "skill-creator",
+  "description": "Agent Skill を新しく作る・既存の Skill を見直す・description を改善するための手引きをまとめたプラグイン。",
+  "version": "0.1.0",
   "author": {
     "name": "fukuda-yuki",
     "url": "https://github.com/fukuda-yuki"
@@ -10,9 +10,8 @@
   "repository": "https://github.com/fukuda-yuki/copilot-tips",
   "extensions": {
     "io.github.fukuda-yuki.copilot-tips": {
-      "skills": [],
-      "agents": [
-        "./agents/custom-agent-creator.md"
+      "skills": [
+        "./skills/skill-creator/"
       ]
     }
   }

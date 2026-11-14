@@ -1,9 +1,9 @@
 name: Check PR target
 
-# main は配布専用。main 宛ての Pull Request は失敗させ、staged へ誘導する。
+# marketplace は配布専用。marketplace 宛ての Pull Request は失敗させ、main へ誘導する。
 on:
   pull_request:
-    branches: [main]
+    branches: [marketplace]
 
 permissions:
   contents: read
@@ -12,7 +12,7 @@ jobs:
   reject:
     runs-on: ubuntu-latest
     steps:
-      - name: Reject pull requests targeting main
+      - name: Reject pull requests targeting marketplace
         run: |
-          echo "::error::main は GitHub Actions が自動生成する配布専用ブランチです。Pull Request の宛先 (base) を staged に変更してください。"
+          echo "::error::marketplace は GitHub Actions が自動生成する配布専用ブランチです。Pull Request の宛先 (base) を main に変更してください。"
           exit 1

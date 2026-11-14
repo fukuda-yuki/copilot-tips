@@ -1,14 +1,15 @@
-name: Publish to main
+name: Publish to marketplace
 
-# staged (正本) に入った変更を、配布形式に変換して main (配布) へ反映する。
-# main を更新するのはこの workflow だけ。
+# main (正本) に入った変更を、配布形式に変換して marketplace (配布) へ反映する。
+# marketplace を更新するのはこの workflow だけ。
 on:
   push:
-    branches: [staged]
+    branches: [main]
+  workflow_dispatch:
 
 env:
-  SOURCE_BRANCH: staged
-  DIST_BRANCH: main
+  SOURCE_BRANCH: main
+  DIST_BRANCH: marketplace
 
 concurrency:
   group: publish-dist
@@ -42,8 +43,14 @@ jobs:
           source_sha="$(git rev-parse --short HEAD)"
           worktree_dir="$(mktemp -d)"
 
-          git fetch origin "${DIST_BRANCH}"
-          git worktree add --detach "${worktree_dir}" "origin/${DIST_BRANCH}"
+          if git fetch origin "${DIST_BRANCH}"; then
+            git worktree add --detach "${worktree_dir}" "origin/${DIST_BRANCH}"
+          else
+            # 配布ブランチがまだ無い場合は、履歴を持たない空のブランチとして作る
+            git worktree add --detach "${worktree_dir}"
+            git -C "${worktree_dir}" checkout --orphan "${DIST_BRANCH}"
+            git -C "${worktree_dir}" rm -rfq .
+          fi
 
           # dist/ の内容で配布ブランチを丸ごと置き換える (履歴は残し、通常の commit を積む)
           rsync -a --delete --exclude '.git' dist/ "${worktree_dir}/"
@@ -55,5 +62,5 @@ jobs:
             exit 0
           fi
           git commit -m "chore: publish from ${SOURCE_BRANCH}@${source_sha}"
-          git push origin "HEAD:${DIST_BRANCH}"
+          git push origin "HEAD:refs/heads/${DIST_BRANCH}"
           echo "${DIST_BRANCH} へ公開しました (${SOURCE_BRANCH}@${source_sha})"

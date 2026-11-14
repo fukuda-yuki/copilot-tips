@@ -4,40 +4,52 @@
 
 ## このリポジトリの目的
 
-`github/awesome-copilot` のように、Skill / Agent / Instruction を **プラグインとして誰でも簡単にインストールできるカタログ** を提供します。利用者は次のようなコマンド 1 つで自分の環境に導入できます。
+`github/awesome-copilot` のように、Skill / Agent / Instruction を **プラグインとして誰でも簡単にインストールできるカタログ** を提供します。利用者は次のようなコマンドで自分の環境に導入できます。
 
 ```bash
 copilot plugin marketplace add fukuda-yuki/copilot-tips
 copilot plugin install <plugin-name>@copilot-tips
 ```
 
-オーナーはツールの内部に詳しくありません。説明は日本語で平易に行い、気づいた改善は積極的に提案してください。
+オーナーはツールの内部に詳しくありません。説明は日本語で平易に行い、気づいた改善は積極的に提案してください。GitHub 側の設定 (ブランチ保護など) も、オーナーに手順を案内するのではなくエージェントが自分で行います。
 
 ## 最重要ルール: ブランチの役割
 
 | ブランチ | 役割 | 編集してよいか |
 | --- | --- | --- |
-| `staged` | **正本**。すべての実装・編集はここに入れる | Pull Request 経由で可 |
-| `main` | **配布専用**。GitHub Actions が `staged` から自動生成する | **不可** (人もエージェントも直接編集しない) |
+| `main` | **正本** (GitHub のデフォルトブランチ)。すべての実装・編集はここに入れる | Pull Request 経由で可 |
+| `marketplace` | **配布専用**。GitHub Actions が `main` から自動生成する | **不可** (人もエージェントも直接編集しない) |
 
-- 作業ブランチは必ず `staged` から切り、Pull Request は必ず `staged` 宛てに作る
-- `main` 宛ての Pull Request は `check-pr-target` workflow が失敗させる
-- `main` への直接 push、force-push、`main` の履歴の書き換えはしない
-- `main` は GitHub のデフォルトブランチのままにする。利用者の `marketplace add` や `apm install` がデフォルトブランチを読むため
-- セッション開始時に `main` が checkout されていたら、まず `git fetch origin staged` して `staged` を基準に作業する
+- 作業ブランチは `main` から切り、Pull Request は `main` 宛てに作る
+- `marketplace` 宛ての Pull Request は `check-pr-target` workflow が失敗させる
+- `marketplace` への直接 push、どちらのブランチへの force-push もしない
+
+これは `github/awesome-copilot` の現在の方式 (`main` → `marketplace`) と同じです。
 
 ## 公開の流れ
 
 ```text
-作業ブランチ ──PR──> staged ──(Actions: publish.yml)──> main
-                     正本                               配布物
+作業ブランチ ──PR──> main ──(Actions: publish.yml)──> marketplace
+                     正本                              配布物
 ```
 
-1. `staged` 宛ての Pull Request で `validate.yml` が検証・テスト・ビルドの試行を行う
-2. `staged` にマージされると `publish.yml` が `npm run build` で `dist/` を生成する
-3. `dist/` の中身で `main` を丸ごと置き換える commit を積む (履歴は残る。差分が無ければ何もしない)
+1. `main` 宛ての Pull Request で `validate.yml` が検証・テスト・ビルドの試行を行う
+2. `main` にマージされると `publish.yml` が `npm run build` で `dist/` を生成する
+3. `dist/` の中身で `marketplace` を丸ごと置き換える commit を積む (履歴は残る。差分が無ければ何もしない)
 
-## ディレクトリ構成 (正本 = staged)
+## 利用者がブランチを間違えない仕組み
+
+`main` のプラグインは「何を同梱するか」の宣言だけで、Skill の実体が入っていません。そのまま配ると空のプラグインになります。これを防ぐため、`main` に置くマーケットプレイス定義は、各プラグインの取得元として `marketplace` ブランチを明示しています。
+
+```json
+"source": { "source": "github", "repo": "fukuda-yuki/copilot-tips", "path": "plugins/<name>", "ref": "marketplace" }
+```
+
+- 利用者が既定の `main` を登録しても、`marketplace` ブランチを登録しても、実体化済みのプラグインが入る
+- `awesome-copilot` 本家はこの仕組みを持たず、Copilot CLI / VS Code に最初から登録されていることに頼っている。このリポジトリは組み込み登録されないので、定義ファイル側で保証する
+- 例外は APM でプラグインのパスを直接指定する場合で、`#marketplace` を付ける必要がある (README に記載)
+
+## ディレクトリ構成 (main)
 
 ```text
 skills/<skill-name>/SKILL.md        Skill 本体 (references/ や assets/ を同梱可)
@@ -45,12 +57,16 @@ agents/<agent-name>.agent.md        Copilot 用カスタムエージェント
 instructions/<name>.instructions.md Copilot 用 instruction (プラグインには入らない)
 plugins/<plugin-name>/plugin.json   プラグインの定義 (何を同梱するかの宣言だけ)
 plugins/<plugin-name>/README.md     プラグインの説明
+.github/plugin/marketplace.json     [生成] Copilot CLI / VS Code 用マーケットプレイス定義
+.claude-plugin/marketplace.json     [生成] Claude Code 用マーケットプレイス定義
+README.md                           利用者向けの入口。「カタログ」の節は [生成]
 eng/                                検証・ビルド用スクリプト (Node.js、外部依存なし)
 .github/workflows/                  validate / publish / check-pr-target
-.github/skills/                     このリポジトリでの作業を助ける Skill (配布対象外)
 ```
 
-中身 (Skill や Agent) は必ずリポジトリ直下の `skills/` `agents/` に 1 つだけ置き、プラグインはそれを **参照するだけ** にします。同じ Skill を複数のプラグインに入れても正本は 1 つです。
+- `agents/` と `instructions/` は中身ができたときに作る (現在は空)
+- 中身 (Skill や Agent) は必ずリポジトリ直下の `skills/` `agents/` に 1 つだけ置き、プラグインはそれを **参照するだけ** にする
+- [生成] のファイルは手で編集しない。`npm run build` が更新するので、その結果を commit する。古いままだと `validate` が失敗する
 
 ### plugin.json の書き方
 
@@ -78,27 +94,27 @@ eng/                                検証・ビルド用スクリプト (Node.j
 - 内容を変えたら `version` を上げる。利用者側の更新検知に使われる
 - `plugins/<plugin-name>/` の中に `skills/` などの実体を置かない。配布時に Actions が生成する
 
-## 配布物の構成 (main、自動生成)
+## 配布物の構成 (marketplace、自動生成)
 
 ```text
-README.md                              カタログ一覧とインストール方法
-AGENTS.md / CLAUDE.md                  「ここは編集禁止、staged へ」という案内
-.github/plugin/marketplace.json        Copilot CLI / VS Code 用マーケットプレイス定義
-.claude-plugin/marketplace.json        Claude Code 用マーケットプレイス定義
+README.md                              main の README に「配布専用」の注意書きを足したもの
+AGENTS.md / CLAUDE.md                  「ここは編集禁止、main へ」という案内
+.github/plugin/marketplace.json        同じブランチ内の plugins/<name> を指す定義
+.claude-plugin/marketplace.json        同上 (Claude Code 用)
 plugins/<plugin-name>/plugin.json      仕様準拠の manifest (同梱宣言は除去済み)
 plugins/<plugin-name>/skills/...       実体化された Skill
 plugins/<plugin-name>/com.github.copilot/agents/...  実体化された Agent
-skills/ agents/ instructions/          単体取得用のコピー (apm install など)
+skills/ agents/ instructions/          単体取得用のコピー
 ```
 
-`eng/` や `.github/workflows/` などの開発用ファイルは `main` には入りません。
+`eng/` や `.github/workflows/` などの開発用ファイルは `marketplace` には入りません。
 
 ## コマンド
 
 ```bash
-npm run validate   # 正本が規約どおりか検証する
-npm test           # 検証 + スクリプトのテスト
-npm run build      # dist/ に配布物を生成する (dist/ は commit しない)
+npm run validate   # 正本が規約どおりか、生成ファイルが最新かを検証する
+npm test           # スクリプトのテスト (このリポジトリ自体の検証を含む)
+npm run build      # 生成ファイルを更新し、dist/ に配布物を生成する (dist/ は commit しない)
 ```
 
 依存パッケージは無いので `npm install` は不要です (Node.js 22 以上)。
@@ -110,13 +126,14 @@ npm run build      # dist/ に配布物を生成する (dist/ は commit しな�
 1. `skills/<skill-name>/SKILL.md` を作る。frontmatter の `name` はフォルダ名と同じ、`description` は「いつ使うか」が分かる 1 行にする
 2. 既存プラグインに入れるか、新しい `plugins/<plugin-name>/` (`plugin.json` と `README.md`) を作って宣言する
 3. 変更したプラグインの `version` を上げる
-4. `npm test` と `npm run build` を通し、`dist/plugins/<plugin-name>/` の中身を確認する
-5. `staged` 宛てに Pull Request を作る
+4. `npm run build` を実行し、`dist/plugins/<plugin-name>/` の中身を確認する
+5. `npm test` を通し、更新された生成ファイルも含めて commit する
+6. `main` 宛てに Pull Request を作る
 
 ### ビルドや検証の仕組みを変える
 
 - `eng/lib.mjs` の `CATALOG` がカタログ名・リポジトリ名・ブランチ名の唯一の定義
-- 配布物の形を変えたら `eng/catalog.test.mjs` とこのファイルの「配布物の構成」も更新する
+- 配布物の形を変えたら `eng/catalog.test.mjs` とこのファイルも更新する
 - スクリプトは外部依存なしを保つ (publish を単純で壊れにくくするため)
 
 ## 規約
@@ -125,9 +142,9 @@ npm run build      # dist/ に配布物を生成する (dist/ は commit しな�
 - ファイル名・フォルダ名は小文字英数字とハイフン
 - 改行コードは LF (`.gitattributes` で強制)
 - commit メッセージは `docs: ...` `feat: ...` `fix: ...` `chore: ...` のような短い命令形
+- LICENSE ファイルは置かない (オーナーの判断)
 
 ## 設計の背景
 
-- `awesome-copilot` も「正本ブランチ → Actions → 配布ブランチ」の 2 ブランチ方式。以前は `staged` → `main`、現在は `main` → `marketplace` に名前が変わっている。このリポジトリは、利用者がデフォルトブランチ指定なしでインストールできるよう `staged` → `main` を採用している
 - `awesome-copilot` は正本のプラグインフォルダ内へ実体を書き込むが、このリポジトリは `dist/` へ別出力する。正本に生成物が紛れ込む事故を防ぐため
-- `microsoft/apm` は利用者側のインストーラ。`main` に仕様準拠の `plugins/<name>/plugin.json` と `skills/<name>/SKILL.md` があれば、追加設定なしで `apm install` できる
+- `microsoft/apm` は利用者側のインストーラ。配布ブランチに仕様準拠の `plugins/<name>/plugin.json` があれば追加設定なしで入る

@@ -11,8 +11,8 @@ export const CATALOG = {
   repo: "fukuda-yuki/copilot-tips",
   owner: { name: "fukuda-yuki", url: "https://github.com/fukuda-yuki" },
   description: "GitHub Copilot などの AI エージェント向け Skill / Agent / Instruction を、プラグインとして簡単にインストールできる日本語カタログ。",
-  sourceBranch: "staged",
-  distBranch: "main",
+  sourceBranch: "main",
+  distBranch: "marketplace",
 };
 
 export const PLUGIN_SCHEMA_URL = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json";
