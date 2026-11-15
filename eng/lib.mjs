@@ -126,6 +126,22 @@ export function readComposition(manifest) {
   };
 }
 
+/** Skill の実例を置くフォルダ。ボードに載せるだけで、配布物には入れない。 */
+export const EXAMPLES_DIR = "examples";
+
+/**
+ * Skill の実例 (examples/<skill-name>.md) を { ask, output } で返す。無い・読めない場合は null。
+ * frontmatter の ask が頼んだ言葉、本文が返ってきたものの抜粋 (整形せず、書かれたまま載せる)。
+ */
+export function readExample(root, skill) {
+  const file = path.join(root, EXAMPLES_DIR, `${skill}.md`);
+  if (!fs.existsSync(file)) return null;
+  const fm = splitFrontmatter(fs.readFileSync(file, "utf8"));
+  const ask = readFrontmatter(file)?.ask ?? "";
+  const output = (fm?.rest ?? "").replace(/\r\n/g, "\n").replace(/^\n+|\s+$/g, "");
+  return ask && output ? { ask, output } : null;
+}
+
 /** カタログの全体像を読み込む (検証はしない)。 */
 export function loadCatalog(root = ROOT) {
   const skills = listDirs(path.join(root, "skills")).map((name) => ({

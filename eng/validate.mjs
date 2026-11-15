@@ -4,10 +4,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  ROOT, COMPOSITION_NS, COPILOT_NS, NAME_PATTERN, PLUGIN_SCHEMA_URL, SPEC_FIELDS,
-  loadCatalog, readComposition, readFrontmatter, readJson,
+  ROOT, COMPOSITION_NS, COPILOT_NS, EXAMPLES_DIR, NAME_PATTERN, PLUGIN_SCHEMA_URL, SPEC_FIELDS,
+  listFiles, loadCatalog, readComposition, readExample, readFrontmatter, readJson,
 } from "./lib.mjs";
 import { staleGenerated } from "./generate.mjs";
+
+/** 実例の本文の行数の上限。ページに全文を載せるので、抜粋に収める。 */
+export const EXAMPLE_MAX_LINES = 40;
 
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 
@@ -113,6 +116,16 @@ export function validateCatalog(root = ROOT) {
 
   for (const name of skillNames) if (!usedSkills.has(name)) warnings.push(`skills/${name}: どのプラグインにも入っていません`);
   for (const name of agentNames) if (!usedAgents.has(name)) warnings.push(`agents/${name}.agent.md: どのプラグインにも入っていません`);
+
+  // --- 実例 (ボードの Skill のページに載る) ---
+  for (const f of listFiles(path.join(root, EXAMPLES_DIR), "")) {
+    const where = `${EXAMPLES_DIR}/${f}`;
+    const name = f.replace(/\.md$/, "");
+    if (!f.endsWith(".md") || !skillNames.has(name)) { errors.push(`${where}: ファイル名は <skill-name>.md にしてください (skills/ にある名前)`); continue; }
+    const example = readExample(root, name);
+    if (!example) errors.push(`${where}: frontmatter の ask (頼んだ言葉) と、本文 (返ってきたものの抜粋) を書いてください`);
+    else if (example.output.split("\n").length > EXAMPLE_MAX_LINES) errors.push(`${where}: 本文は ${EXAMPLE_MAX_LINES} 行以内にしてください`);
+  }
 
   // --- 生成ファイルが最新か ---
   if (errors.length === 0) {

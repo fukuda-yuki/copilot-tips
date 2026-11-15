@@ -4,9 +4,9 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { CATALOG, COMPOSITION_NS, GIT_ENV, PLUGIN_SCHEMA_URL, ROOT } from "./lib.mjs";
+import { CATALOG, COMPOSITION_NS, GIT_ENV, PLUGIN_SCHEMA_URL, ROOT, readExample } from "./lib.mjs";
 import {
-  DATA_FILE, FRESH_DAYS, askPhrases, boardSkills, bundledSummary, descriptionHash, orderPhrases, bundleCommands, buildBoard, freshness, installGuides, navGroups, recordHistory, renderBoard, shortDescription, showAuthorsFrom, skillDates,
+  DATA_FILE, FRESH_DAYS, TOOLS, askPhrases, boardSkills, bundledSummary, descriptionHash, orderPhrases, bundleCommands, buildBoard, freshness, installGuides, navGroups, recordHistory, renderBoard, shortDescription, showAuthorsFrom, skillDates,
 } from "./board.mjs";
 import { REQUEST_CATEGORY, collect, discussionMarker } from "./board-collect.mjs";
 
@@ -41,10 +41,10 @@ const stats = {
 test("Skill の説明・同梱プラグイン・作成者を正本から読む", () => {
   assert.deepEqual(boardSkills(fixture()), [
     {
-      name: "hello", description: "あいさつする。丁寧に。", requires: "", bundled: "", plugins: ["hello-pack"], versions: { "hello-pack": "1.0.0" },
+      name: "hello", description: "あいさつする。丁寧に。", requires: "", bundled: "", example: null, plugins: ["hello-pack"], versions: { "hello-pack": "1.0.0" },
       authors: [{ name: "alice", url: "https://github.com/alice" }], published: null, updated: null,
     },
-    { name: "solo", description: "単体の <Skill>", requires: "", bundled: "", plugins: [], versions: {}, authors: [], published: null, updated: null },
+    { name: "solo", description: "単体の <Skill>", requires: "", bundled: "", example: null, plugins: [], versions: {}, authors: [], published: null, updated: null },
   ]);
 });
 
@@ -113,6 +113,7 @@ test("一覧と Skill ごとのページを生成する", () => {
   assert.ok(table.indexOf('href="skills/hello/"') < table.indexOf('href="skills/solo/"'), "👍 の多い順に並ぶ");
   assert.match(index, /href="https:\/\/github\.com\/x\/y\/discussions\/1">いいねを送る</);
   assert.match(index, /href="https:\/\/github\.com\/x\/y\/discussions\/1">感想を書く</);
+  assert.match(index, /<button class="copy" type="button" data-get="hello" data-plugins="hello-pack" hidden>入れるコマンドをコピー<\/button><span class="send">/, "コピーは JavaScript が無ければ出さない");
   assert.match(index, /2026-11-14 09:00 更新/);
 
   const hello = files["skills/hello/index.html"];
@@ -122,14 +123,16 @@ test("一覧と Skill ごとのページを生成する", () => {
   assert.match(hello, /bob　<a/);
   assert.match(hello, /作成者<\/dt><dd><a href="https:\/\/github.com\/alice">alice/);
   assert.match(hello, /<h3>VS Code<\/h3>/);
-  assert.match(hello, /role="tablist"/);
+  assert.match(hello, /<select class="tool" aria-label="使う道具" hidden><option value="copilot">GitHub Copilot CLI<\/option>/, "使う道具は上の帯で選ぶ");
+  assert.match(hello, /<h2 id="install">入れる<\/h2>/, "頼み方が無ければ番号を振らない");
+  assert.ok(hello.indexOf('id="install"') < hello.indexOf('id="voices"') && hello.indexOf('id="voices"') < hello.indexOf('id="facts"'), "入れる・感想・情報の順");
   assert.match(hello, /href="https:\/\/github.com\/x\/y\/discussions\/1">いいねを送る <span>5</);
   assert.match(hello, /href="\.\.\/\.\.\/skills\/hello\/" aria-current="page"/);
 
   const solo = files["skills/solo/index.html"];
   assert.match(solo, /単体の &lt;Skill&gt;/);
   assert.doesNotMatch(solo, /id="voices"/, "スレッドが無ければ感想の節を出さない");
-  assert.doesNotMatch(solo, /copilot plugin install|VS Code/);
+  assert.doesNotMatch(solo, /copilot plugin install|<h3>VS Code/);
   assert.match(solo, /npx skills add fukuda-yuki\/copilot-tips --skill solo/);
 });
 
@@ -209,6 +212,8 @@ test("一覧で Skill を選べ、選ぶ欄は JavaScript が無ければ出さ�
   const files = renderBoard({ skills: boardSkills(fixture()), stats });
   assert.match(files["index.html"], /<input type="checkbox" value="hello" data-plugins="hello-pack" aria-label="hello">/);
   assert.match(files["index.html"], /<section class="bundle" data-config="[^"]*" hidden>/);
+  assert.match(files["index.html"], /<pre id="bundle-link"><\/pre><button class="copy" type="button" data-copy="bundle-link">リンクをコピー</, "選んだセットを渡すリンク");
+  assert.match(files["board.js"], /get\("pick"\)/, "?pick= で開いたセットを選んだ状態にする");
   assert.match(files["style.css"], /\.pick \{ display: none;/);
   assert.doesNotThrow(() => new Function("document", "localStorage", "navigator", files["board.js"]), "board.js が構文として正しい");
 });
@@ -242,6 +247,24 @@ test("skill-board が読む URL と送り方は、ボードの出力と一致す
   assert.match(skill, new RegExp(`${FRESH_DAYS} 日以内`));
 });
 
+test("入れ方を出すツールは、上の帯の選択肢と一致する", () => {
+  const all = (guides) => guides.map((g) => ({ id: g.id, tool: g.tool }));
+  assert.deepEqual(all(installGuides({ name: "a", plugins: ["p"] })), TOOLS);
+  const config = { repo: CATALOG.repo, catalog: CATALOG.name, distBranch: CATALOG.distBranch };
+  assert.deepEqual(all(bundleCommands(config, [{ name: "a", plugins: ["p"] }])), TOOLS);
+});
+
+test("実例は examples/<skill>.md から読み、Skill のページに書かれたまま出す", () => {
+  const root = fixture();
+  assert.equal(readExample(root, "hello"), null);
+  write(path.join(root, "examples/hello.md"), "---\nask: あいさつして\n---\n\nこんにちは <b>\n  2 行目\n\n");
+  assert.deepEqual(readExample(root, "hello"), { ask: "あいさつして", output: "こんにちは <b>\n  2 行目" });
+  const files = renderBoard({ skills: boardSkills(root), stats });
+  assert.match(files["skills/hello/index.html"], /<h2 id="example">実例<\/h2>\n<div class="ex">\n<p class="q">あいさつして<\/p>\n<pre>こんにちは &lt;b&gt;\n  2 行目<\/pre>/);
+  assert.doesNotMatch(files["skills/solo/index.html"], /id="example"/, "実例が無ければ節を出さない");
+  assert.doesNotMatch(files[DATA_FILE], /こんにちは/);
+});
+
 /** 頼み方・必須環境・同梱物のある Skill を 1 つ足したカタログ。 */
 function askFixture() {
   const root = fixture();
@@ -261,7 +284,8 @@ test("頼み方は description の「」から抜き、一覧と Skill のペー
   const files = renderBoard({ skills: boardSkills(askFixture()), stats });
   assert.match(files["index.html"], /<span class="ask">「診断して」 「doctor」<\/span>/);
   const page = files["skills/ask/index.html"];
-  assert.match(page, /<p>設定を点検する。<\/p>\n<h2 id="ask">頼み方<\/h2>/, "description の全文の代わりに最初の 1 文を出す");
+  assert.match(page, /<p>設定を点検する。<\/p>/, "description の全文の代わりに最初の 1 文を出す");
+  assert.ok(page.indexOf('<h2 id="install">1. 入れる</h2>') < page.indexOf('<h2 id="ask">2. 頼む</h2>'), "入れる・頼むの順に番号を振る");
   assert.match(page, /<li><span id="ask-0">診断して<\/span><button class="copy" type="button" data-copy="ask-0">コピー<\/button><\/li>/);
   assert.match(page, /<summary>ほか 1 件<\/summary>\n<ul class="say">\n<li><span id="ask-5">c</, "6 つ目からは畳む");
   assert.doesNotMatch(files["skills/hello/index.html"], /id="ask"/, "頼み方が無ければ節を出さない");

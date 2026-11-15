@@ -4,6 +4,7 @@
 //  - 公開日と最終更新日は skills/<name>/ の git の履歴から読む (浅い clone では読まない)
 //  - 👍 と感想は board-collect.mjs が集計した stats.json から読む
 //  - 同じ内容を skills.json にも出す。エージェントが読む一覧で、skills/skill-board が使う
+//  - 実例は examples/<name>.md から読む (あるものだけ載せる)
 //  - 頼み方は description の「」から抜く。trigger-check.mjs の結果があれば、呼ばれると確かめた頼み方を先に並べる
 //  - 出力は dist/board/ (正本には書かない)
 //
@@ -15,7 +16,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ROOT, CATALOG, GIT_ENV, boardSkillUrl, loadCatalog, parseArgs, readFrontmatter, readJsonIfExists, writeText } from "./lib.mjs";
+import { ROOT, CATALOG, GIT_ENV, boardSkillUrl, loadCatalog, parseArgs, readExample, readFrontmatter, readJsonIfExists, writeText } from "./lib.mjs";
 import { readPlugins } from "./generate.mjs";
 
 const TIME_ZONE = "Asia/Tokyo";
@@ -102,6 +103,7 @@ export function boardSkills(root = ROOT, dates = (name) => skillDates(root, name
       description: fm?.description ?? "",
       requires: fm?.compatibility ?? "",
       bundled: bundledSummary(skill.dir),
+      example: readExample(root, skill.name),
       plugins: inPlugins.map((p) => p.name),
       versions: Object.fromEntries(inPlugins.map((p) => [p.name, p.version])),
       authors,
@@ -109,6 +111,15 @@ export function boardSkills(root = ROOT, dates = (name) => skillDates(root, name
     };
   });
 }
+
+/** 入れ方を出すツール。全ページの上の帯で 1 つ選ぶ。id は installGuides / bundleCommands の id と同じ。 */
+export const TOOLS = [
+  { id: "copilot", tool: "GitHub Copilot CLI" },
+  { id: "vscode", tool: "VS Code" },
+  { id: "claude", tool: "Claude Code" },
+  { id: "apm", tool: "APM" },
+  { id: "skills", tool: "npx skills" },
+];
 
 /**
  * インストール方法をツールごとに返す。README.md の「インストール」と同じコマンドに、プラグイン名・Skill 名を埋める。
@@ -335,7 +346,10 @@ td.n, th.n { text-align: right; white-space: nowrap; font-size: 1.125rem; }
 th.n { font-size: 0.875rem; }
 td.up { font-weight: 700; }
 td.act { white-space: nowrap; font-size: 0.875rem; padding-right: 0; }
-td.act a { display: block; }
+td.act .copy { display: block; }
+td.act .copy[hidden] { display: none; }
+td.act .send { margin-top: 8px; gap: 4px 16px; }
+td.act .send:first-child { margin-top: 0; }
 .pick { display: none; width: 44px; padding-right: 0; }
 .picking .pick { display: table-cell; }
 .pick label { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; margin: -4px 0 0 -6px; cursor: pointer; }
@@ -359,11 +373,10 @@ dl div { display: flex; flex-wrap: wrap; gap: 4px 24px; padding: 12px 0; border-
 dt { flex: 0 0 7em; font-size: 0.875rem; color: var(--sub); }
 dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 
-.tabs { display: flex; flex-wrap: wrap; gap: 0 8px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
-.tabs button, .sort button { font: inherit; color: var(--ink); background: none; border: 0; border-bottom: 4px solid transparent; min-height: 48px; padding: 8px 16px; cursor: pointer; }
-.tabs button[aria-selected="true"], .sort button[aria-pressed="true"] { color: var(--link); font-weight: 700; border-bottom-color: var(--link); }
-.tabbed .panel h3 { display: none; }
-.tabs[hidden], .sort[hidden] { display: none; }
+.tool { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; min-height: 40px; padding: 6px 8px; }
+.sort button { font: inherit; color: var(--ink); background: none; border: 0; border-bottom: 4px solid transparent; min-height: 48px; padding: 8px 16px; cursor: pointer; }
+.sort button[aria-pressed="true"] { color: var(--link); font-weight: 700; border-bottom-color: var(--link); }
+.sort[hidden] { display: none; }
 .sort { display: flex; gap: 0 8px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
 .cmd { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; background: var(--code); padding: 16px; margin-bottom: 12px; }
 pre { font-family: var(--mono); font-size: 0.875rem; line-height: 1.8; margin: 0; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; align-self: center; }
@@ -377,7 +390,10 @@ pre { font-family: var(--mono); font-size: 0.875rem; line-height: 1.8; margin: 0
 details.more .say { border-top: 0; }
 details.more summary { cursor: pointer; padding: 12px 0; color: var(--link); font-size: 0.875rem; }
 .ask { display: block; font-size: 0.875rem; margin-top: 6px; max-width: 34em; }
-.links { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+.links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; }
+.ex { border-top: 1px solid var(--line); padding-top: 16px; }
+.ex .q { font-weight: 700; }
+.ex pre { background: var(--code); padding: 16px; }
 td.req { overflow-wrap: anywhere; }
 
 .voices { border-top: 1px solid var(--line); }
@@ -392,37 +408,60 @@ td.req { overflow-wrap: anywhere; }
   main { flex: none; border-left: 0; padding: 32px 16px 48px; min-height: 0; }
   .bar { padding-inline: 16px; }
   h1 { font-size: 1.75rem; }
-  .scroll { overflow-x: auto; }
-  table { table-layout: fixed; }
-  th, td { padding-right: 12px; }
-  td.n, th.n { font-size: 1rem; width: 3.25rem; }
+  /* 一覧は、Skill と数字を 1 段目、コピーと送り先を 2 段目に置く */
+  .scroll table, .scroll thead, .scroll tbody { display: block; }
+  .scroll tr { display: grid; grid-template-columns: 1fr 3.25rem 3.25rem; border-bottom: 1px solid var(--line); }
+  .picking .scroll tr { grid-template-columns: 36px 1fr 3.25rem 3.25rem; }
+  .scroll thead { position: sticky; top: 0; z-index: 1; background: var(--bg); }
+  .scroll thead tr { border-bottom: 2px solid var(--ink); }
+  .scroll th, .scroll td { border-bottom: 0; padding-right: 12px; }
+  .scroll thead th { position: static; }
+  td.n, th.n { font-size: 1rem; padding-right: 0; }
   th.n { font-size: 0.875rem; }
-  th.act { width: 5.5rem; }
-  .pick { width: 36px; }
-  td.date, th.date { display: none; }
+  td.date, th.date, th.act { display: none; }
+  td.act { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding-top: 0; }
+  .picking td.act { grid-column: 2 / -1; }
+  td.act .send { margin-top: 0; }
+  th, td { padding-right: 12px; }
   .sub { max-width: 100%; }
 }
 `;
 
-// 入れ方のタブとコマンドのコピー。JS が無くても内容は読める。
+// 使う道具の選択、並び順、まとめて入れる欄、コピー。JS が無くても内容は読める。
 const SCRIPT = `${bundleCommands}
-const tabs = document.querySelector(".tabs[hidden]");
-if (tabs) {
-  const buttons = [...tabs.querySelectorAll("button")];
-  const panels = [...document.querySelectorAll(".panel")];
-  const show = (tool) => {
-    buttons.forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tool === tool)));
-    panels.forEach((p) => { p.hidden = p.dataset.tool !== tool; });
+let tool = null;
+try { tool = localStorage.getItem("tool"); } catch {}
+const toolPick = document.querySelector(".tool");
+const onTool = [];
+if (toolPick) {
+  if ([...toolPick.options].some((o) => o.value === tool)) toolPick.value = tool;
+  else tool = toolPick.value;
+  toolPick.addEventListener("change", () => {
+    tool = toolPick.value;
+    try { localStorage.setItem("tool", tool); } catch {}
+    onTool.forEach((f) => f());
+  });
+  toolPick.hidden = false;
+}
+// 選んだ道具の入れ方。その道具で入れられないものは、先頭の入れ方を道具の名前つきで出す
+const guideFor = (guides) => guides.find((g) => g.id === tool) || guides[0];
+const copy = async (b, text, done = "コピーしました") => {
+  const label = b.dataset.label || (b.dataset.label = b.textContent);
+  try { await navigator.clipboard.writeText(text); b.textContent = done; }
+  catch { b.textContent = "コピーできませんでした"; }
+  setTimeout(() => { b.textContent = label; }, 2000);
+};
+const panels = [...document.querySelectorAll(".panel")];
+if (toolPick && panels.length > 0) {
+  const show = () => {
+    const current = panels.find((p) => p.dataset.tool === tool) || panels[0];
+    panels.forEach((p) => {
+      p.hidden = p !== current;
+      p.querySelector("h3").hidden = p.dataset.tool === tool;
+    });
   };
-  let saved = null;
-  try { saved = localStorage.getItem("tool"); } catch {}
-  buttons.forEach((b) => b.addEventListener("click", () => {
-    show(b.dataset.tool);
-    try { localStorage.setItem("tool", b.dataset.tool); } catch {}
-  }));
-  tabs.hidden = false;
-  document.documentElement.classList.add("tabbed");
-  show(buttons.some((b) => b.dataset.tool === saved) ? saved : buttons[0].dataset.tool);
+  onTool.push(show);
+  show();
 }
 const sort = document.querySelector(".sort");
 if (sort) {
@@ -449,46 +488,41 @@ if (sort) {
 const bundle = document.querySelector(".bundle");
 if (bundle) {
   const config = JSON.parse(bundle.dataset.config);
+  const skillOf = (name, plugins) => ({ name, plugins: plugins ? plugins.split(",") : [] });
   const boxes = [...document.querySelectorAll(".pick input")];
-  const tabs = bundle.querySelector(".tabs");
-  const pre = bundle.querySelector("pre");
+  const pre = document.getElementById("bundle-cmd");
+  const link = document.getElementById("bundle-link");
+  const name = bundle.querySelector(".name");
   const note = bundle.querySelector(".note");
-  let tool = null;
-  try { tool = localStorage.getItem("tool"); } catch {}
+  // ?pick=a,b で開いたら、そのセットを選んだ状態にする
+  const picked = (new URLSearchParams(location.search).get("pick") || "").split(",");
+  boxes.forEach((b) => { if (picked.includes(b.value)) b.checked = true; });
   const render = () => {
-    const selected = boxes.filter((b) => b.checked).map((b) => ({ name: b.value, plugins: b.dataset.plugins ? b.dataset.plugins.split(",") : [] }));
+    const selected = boxes.filter((b) => b.checked).map((b) => skillOf(b.value, b.dataset.plugins));
     const guides = bundleCommands(config, selected);
     bundle.hidden = guides.length === 0;
     if (guides.length === 0) return;
-    const current = guides.find((g) => g.id === tool) || guides[0];
-    tabs.replaceChildren(...guides.map((g) => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.textContent = g.tool;
-      b.setAttribute("role", "tab");
-      b.setAttribute("aria-selected", String(g === current));
-      b.addEventListener("click", () => {
-        tool = g.id;
-        try { localStorage.setItem("tool", tool); } catch {}
-        render();
-        tabs.querySelector('[aria-selected="true"]').focus();
-      });
-      return b;
-    }));
+    const current = guideFor(guides);
+    name.textContent = current.tool;
+    name.hidden = current.id === tool;
     pre.textContent = current.lines.join("\\n");
     note.textContent = current.note || "";
     note.hidden = !current.note;
+    link.textContent = location.origin + location.pathname + "?pick=" + selected.map((s) => s.name).join(",");
   };
   boxes.forEach((b) => b.addEventListener("change", render));
+  onTool.push(render);
   document.documentElement.classList.add("picking");
   render();
+  document.querySelectorAll("button[data-get]").forEach((b) => {
+    b.addEventListener("click", () => {
+      const g = guideFor(bundleCommands(config, [skillOf(b.dataset.get, b.dataset.plugins)]));
+      copy(b, g.lines.join("\\n"), g.id === tool ? undefined : g.tool + " のコマンドをコピーしました");
+    });
+    b.hidden = false;
+  });
 }
-document.querySelectorAll("button[data-copy]").forEach((b) => b.addEventListener("click", async () => {
-  const text = document.getElementById(b.dataset.copy).textContent;
-  try { await navigator.clipboard.writeText(text); b.textContent = "コピーしました"; }
-  catch { b.textContent = "コピーできませんでした"; }
-  setTimeout(() => { b.textContent = "コピー"; }, 2000);
-}));
+document.querySelectorAll("button[data-copy]").forEach((b) => b.addEventListener("click", () => copy(b, document.getElementById(b.dataset.copy).textContent)));
 `;
 
 function page({ title, base, current, groups, body, requests }) {
@@ -506,7 +540,7 @@ ${g.skills.map((s) => `<li><a href="${base}skills/${esc(s)}/"${s === current ? '
 <link rel="stylesheet" href="${base}style.css">
 </head>
 <body>
-<header class="top"><div class="bar"><a class="site" href="${base || "./"}">${esc(CATALOG.name)}</a><span class="links">${requests ? `<a href="${esc(requests.url)}">${REQUEST_LINK}</a>` : ""}<a href="https://github.com/${CATALOG.repo}">GitHub</a></span></div></header>
+<header class="top"><div class="bar"><a class="site" href="${base || "./"}">${esc(CATALOG.name)}</a><span class="links"><select class="tool" aria-label="使う道具" hidden>${TOOLS.map((t) => `<option value="${t.id}">${esc(t.tool)}</option>`).join("")}</select>${requests ? `<a href="${esc(requests.url)}">${REQUEST_LINK}</a>` : ""}<a href="https://github.com/${CATALOG.repo}">GitHub</a></span></div></header>
 <div class="layout">
 <nav class="side" aria-label="Skill">
 ${nav}
@@ -528,6 +562,9 @@ const MAX_REQUESTS = 20;
 /** Skill のページで、畳まずに見せる頼み方の数。残りは「ほか n 件」に入れる。 */
 const SHOWN_PHRASES = 5;
 
+/** 一覧の行に出す、その Skill を入れるコマンドのコピーのボタンの文字。 */
+const GET_LABEL = "入れるコマンドをコピー";
+
 const TAGS = { new: "New", updated: "Updated" };
 const tag = (fresh) => (fresh ? `<span class="tag ${fresh}">${TAGS[fresh]}</span>` : "");
 const dayOrBlank = (iso) => (iso ? dayOf(new Date(iso)) : "");
@@ -537,9 +574,9 @@ const ask = (row) => (row.ask.length > 0 ? `<span class="ask">${row.ask.slice(0,
 
 export function renderIndex(rows, { generatedAt, requests = null }) {
   const body = rows.map((r) => {
-    const act = r.url
-      ? `<a href="${esc(r.url)}">いいねを送る</a><a href="${esc(r.url)}">感想を書く</a>`
-      : "";
+    // コピーのボタンは JS が要るので、無ければ出さない
+    const act = `<button class="copy" type="button" data-get="${esc(r.name)}" data-plugins="${esc(r.plugins.join(","))}" hidden>${GET_LABEL}</button>${
+      r.url ? `<span class="send"><a href="${esc(r.url)}">いいねを送る</a><a href="${esc(r.url)}">感想を書く</a></span>` : ""}`;
     return `      <tr data-updated="${esc(r.updated ?? "")}">
         <td class="pick"><label><input type="checkbox" value="${esc(r.name)}" data-plugins="${esc(r.plugins.join(","))}" aria-label="${esc(r.name)}"></label></td>
         <td><a class="skill" href="skills/${esc(r.name)}/">${esc(r.name)}</a>${tag(freshness(r, generatedAt))}<span class="sub">${esc(shortDescription(r.description))}</span>${ask(r)}</td>
@@ -593,9 +630,10 @@ ${body}
 </div>
 <section class="bundle" data-config="${esc(JSON.stringify({ repo: CATALOG.repo, catalog: CATALOG.name, distBranch: CATALOG.distBranch }))}" hidden>
 <h2>まとめて入れる</h2>
-<div class="tabs" role="tablist"></div>
+<p class="small name" hidden></p>
 <div class="cmd"><pre id="bundle-cmd"></pre><button class="copy" type="button" data-copy="bundle-cmd">コピー</button></div>
 <p class="note" hidden></p>
+<div class="cmd"><pre id="bundle-link"></pre><button class="copy" type="button" data-copy="bundle-link">リンクをコピー</button></div>
 </section>
 ${wanted}${footer(generatedAt)}`,
   });
@@ -627,13 +665,6 @@ ${g.blocks.map((b) => {
     return `${label ? `<p class="small">${esc(label)}</p>\n` : ""}<div class="cmd"><pre id="${id}">${b.lines.map(esc).join("\n")}</pre><button class="copy" type="button" data-copy="${id}">コピー</button></div>`;
   }).join("\n")}${g.note ? `\n<p>${g.note}</p>` : ""}
 </div>`).join("\n");
-  const tabs = guides.length > 1
-    ? `<div class="tabs" role="tablist" hidden>
-${guides.map((g) => `<button type="button" role="tab" data-tool="${g.id}" aria-controls="panel-${g.id}" aria-selected="false">${esc(g.tool)}</button>`).join("\n")}
-</div>
-`
-    : "";
-
   const comments = [...row.comments].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const voices = comments.length > 0
     ? `<div class="voices">
@@ -653,13 +684,12 @@ ${comments.map((c) => `<div class="voice">
     ? `<p class="send"><a href="${esc(row.url)}">いいねを送る</a><a href="${esc(row.url)}">感想を書く</a></p>`
     : "";
 
-  // 頼み方がある Skill は、AI 向けの description 全文の代わりに、最初の 1 文と頼み方を出す
+  // 頼み方がある Skill は、AI 向けの description 全文の代わりに、最初の 1 文と頼み方を出す。入れる → 頼む の順に番号を振る
   const say = (p, i) => `<li><span id="ask-${i}">${esc(p)}</span><button class="copy" type="button" data-copy="ask-${i}">コピー</button></li>`;
   const shown = row.ask.slice(0, SHOWN_PHRASES).map(say);
   const rest = row.ask.slice(SHOWN_PHRASES).map((p, i) => say(p, i + SHOWN_PHRASES));
-  const lead = row.ask.length > 0
-    ? `<p>${esc(firstSentence(row.description))}</p>
-<h2 id="ask">頼み方</h2>
+  const asks = row.ask.length > 0
+    ? `<h2 id="ask">2. 頼む</h2>
 <ul class="say">
 ${shown.join("\n")}
 </ul>${rest.length > 0 ? `
@@ -667,8 +697,17 @@ ${shown.join("\n")}
 <ul class="say">
 ${rest.join("\n")}
 </ul>
-</details>` : ""}`
-    : `<p>${esc(row.description)}</p>`;
+</details>` : ""}
+`
+    : "";
+  const example = row.example
+    ? `<h2 id="example">実例</h2>
+<div class="ex">
+<p class="q">${esc(row.example.ask)}</p>
+<pre>${esc(row.example.output)}</pre>
+</div>
+`
+    : "";
 
   return page({
     title: `${row.name} - ${CATALOG.name}`,
@@ -677,19 +716,17 @@ ${rest.join("\n")}
     groups,
     requests,
     body: `<h1><span class="mono">${esc(row.name)}</span>${tag(freshness(row, generatedAt))}</h1>
-${lead}
+<p>${esc(row.ask.length > 0 ? firstSentence(row.description) : row.description)}</p>
 ${actions}
+<h2 id="install">${row.ask.length > 0 ? "1. " : ""}入れる</h2>
+${panels}
+${asks}${example}${row.url ? `<h2 id="voices">感想</h2>
+${voices}
+${send}
+` : ""}<h2 id="facts">情報</h2>
 <dl>
 ${facts.map(([k, v]) => `  <div><dt>${k}</dt><dd>${v}</dd></div>`).join("\n")}
 </dl>
-
-<h2 id="install">入れ方</h2>
-${tabs}${panels}
-
-${row.url ? `<h2 id="voices">感想</h2>
-${voices}
-${send}
-` : ""}
 ${footer(generatedAt)}`,
   });
 }

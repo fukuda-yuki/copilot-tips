@@ -1,6 +1,6 @@
 ---
 name: skill-board
-description: copilot-tips の Skill ボードをチャットの中から使う。やりたいことに合う Skill を探して入れ方を示す、使った Skill にいいね (👍) や感想を利用者の gh で送る、ほしい Skill の要望を投稿する、新着・更新された Skill を知らせる。「〜に使える Skill ある?」「copilot-tips の Skill を見せて」「この Skill にいいね」「imozuru に感想を送って」「こんな Skill がほしい」「Skill の新着は?」などの依頼で使う。
+description: copilot-tips の Skill ボードをチャットの中から使う。やりたいことに合う Skill を探して入れ方を示す、使った Skill にいいね (👍) や感想を利用者の gh で送る、作業中のリポジトリに合う Skill を勧める、ほしい Skill の要望を投稿する、新着と、入れてある Skill の更新を知らせる。「〜に使える Skill ある?」「このリポジトリに合う Skill ある?」「copilot-tips の Skill を見せて」「この Skill にいいね」「imozuru に感想を送って」「こんな Skill がほしい」「Skill の新着は?」「Skill の更新ある?」などの依頼で使う。
 compatibility: gh (GitHub CLI。いいね・感想・要望を送るとき)
 ---
 
@@ -47,6 +47,15 @@ https://fukuda-yuki.github.io/copilot-tips/skills.json
 3. 入れ方は、いま動いているツールの `install` だけを示す。ツールが分からなければ尋ねる。コマンドの実行は頼まれたときだけ。
 4. 入れたあとの頼み方として、`ask` の先頭から 2〜3 個を示す。
 5. 合うものが無く、`requests` があれば、要望として投稿できることを 1 行で伝える。
+
+## リポジトリに合う Skill を勧める
+
+利用者が「このリポジトリに合う Skill は?」のように頼んだときに行う。頼まれていないのに勧めない。
+
+1. 作業中のリポジトリに何があるかを、ファイルとフォルダの名前で調べる。中身は読まない。見るのは、Copilot やエージェント向けの設定 (`.github/copilot-instructions.md`、`.github/instructions/`、`.github/prompts/`、`.github/agents/`、`AGENTS.md`、各ツールの `skills/` フォルダ) と、使っている言語や道具が分かるファイル (`package.json`、`pyproject.toml` など)。
+2. 一覧を読み、見つけたものを扱うと `description` に書いてある Skill だけを選ぶ。多くて 3 件。すでに入っていると分かるものは外す。合うものが無ければ「無い」と答える。
+3. Skill ごとに、名前、リポジトリで見つけたものと合う理由を 1 行、いいねの数、`page` を示す。
+4. 入れ方と頼み方は「探す」の 3 と 4 と同じ。
 
 ## いいねを送る
 
@@ -96,6 +105,12 @@ gh api graphql -f query='mutation($repo:ID!,$cat:ID!,$title:String!,$body:String
 
 4. 返ってきた `discussion.url` を伝え、一時ファイルを消す。送れなかったときは `requests.url` を示して、ブラウザで投稿できることを伝える。
 
-## 新着・更新を知らせる
+## 新着を知らせる
 
-`published` が 14 日以内のものを新着、それ以外で `updated` が 14 日以内のものを更新として、新しい順に挙げる。どちらも無ければ「無い」と答える。利用者が入れているプラグインの版が分かるときは、`plugins` の `version` と比べて、古いものを伝える。
+`published` が 14 日以内のものを新着、それ以外で `updated` が 14 日以内のものを更新として、新しい順に挙げる。どちらも無ければ「無い」と答える。
+
+## 入れてある Skill の更新を知らせる
+
+1. 利用者が入れているプラグインと版を調べる。いま動いているツールでプラグインの一覧を出せればそれを使い、出せなければ入っているプラグインの `plugin.json` の `version` を読む。どちらも分からなければ、推測せず、入れているプラグインと版を利用者に尋ねる。
+2. 一覧の `plugins` の `version` と比べ、古いものだけを挙げる。プラグイン名、入れてある版と新しい版、`updated` の日付、`page` を示す。古いものが無ければ「無い」と答える。
+3. 更新は頼まれたときだけ行う。ツールの更新のやり方が分からなければ、`install` のコマンドを示す。
