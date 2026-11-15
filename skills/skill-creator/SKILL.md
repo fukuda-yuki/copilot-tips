@@ -1,6 +1,6 @@
 ---
 name: skill-creator
-description: Use this skill when the user wants to create a new GitHub Copilot agent skill, adapt an existing skill, improve a skill's trigger description, review a skill's structure, add validation and evaluation, or extract a reusable skill from repeated real-world work. This skill is for authoring and iterating on skills themselves.
+description: GitHub Copilot の Agent Skill を新しく作る、既存の Skill を手直しする、呼ばれやすい description に直す、構成をレビューする、検証と評価を足す、繰り返した作業から Skill を切り出す。「Skill を作って」「この作業を Skill にして」「Skill が呼ばれないので description を直して」「この Skill をレビューして」、英語では create a skill / improve this skill's description / review this skill の依頼で使う。Skill そのものを作る・直すための Skill。
 license: Adapted for GitHub Copilot environments
 ---
 

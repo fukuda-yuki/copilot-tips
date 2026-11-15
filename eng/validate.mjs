@@ -37,6 +37,7 @@ export function validateCatalog(root = ROOT) {
     if (!fm) { errors.push(`${where}/SKILL.md: frontmatter がありません`); continue; }
     if (fm.name !== skill.name) errors.push(`${where}/SKILL.md: name (${fm.name}) をフォルダ名と一致させてください`);
     checkDescription(fm, `${where}/SKILL.md`);
+    if ((fm.compatibility ?? "").length > 500) errors.push(`${where}/SKILL.md: compatibility は 500 文字以内にしてください`);
   }
 
   // --- agents ---

@@ -1,0 +1,73 @@
+name: Trigger check
+
+# Skill の「頼み方」を Copilot CLI に渡して、その Skill が呼ばれるかを確かめる (eng/trigger-check.mjs)。
+# 結果は board-data ブランチの triggers.json に残し、次の Skill board の実行でページに反映される。
+# 手動でだけ実行する。頼み方 1 つにつき、secret COPILOT_TOKEN の持ち主の Copilot の利用枠を 1 回ぶん使う。
+# 準備の手順は CONTRIBUTING.md にある。
+on:
+  workflow_dispatch:
+    inputs:
+      skill:
+        description: 確かめる Skill の名前 (空なら全部)
+        required: false
+        type: string
+
+# Skill board と同じブランチ (board-data) に push するので、同時に走らせない
+concurrency:
+  group: skill-board
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write # 結果を board-data ブランチに残す
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Check out the history branch
+        id: data
+        run: |
+          set -euo pipefail
+          branch="$(node --input-type=module -e 'import { CATALOG } from "./eng/lib.mjs"; console.log(CATALOG.boardDataBranch)')"
+          dir="${RUNNER_TEMP}/board-data"
+          git fetch origin "${branch}"
+          git worktree add --detach "${dir}" FETCH_HEAD
+          echo "branch=${branch}" >> "${GITHUB_OUTPUT}"
+          echo "dir=${dir}" >> "${GITHUB_OUTPUT}"
+      - name: Install Copilot CLI
+        run: npm install -g @github/copilot
+      - name: Check phrases
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_TOKEN }}
+          SKILL: ${{ inputs.skill }}
+        run: |
+          set -euo pipefail
+          if [ -z "${COPILOT_GITHUB_TOKEN}" ]; then
+            echo "secret COPILOT_TOKEN がありません。" >&2
+            exit 1
+          fi
+          copilot --version
+          set -- --out "${{ steps.data.outputs.dir }}/triggers.json" --summary "${GITHUB_STEP_SUMMARY}"
+          if [ -n "${SKILL}" ]; then set -- "$@" --skill "${SKILL}"; fi
+          node eng/trigger-check.mjs "$@"
+      - name: Save results
+        working-directory: ${{ steps.data.outputs.dir }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add triggers.json
+          if git diff --cached --quiet; then
+            echo "結果に変更はありません。"
+            exit 0
+          fi
+          git commit -m "chore: record trigger check results"
+          git push origin "HEAD:refs/heads/${{ steps.data.outputs.branch }}"

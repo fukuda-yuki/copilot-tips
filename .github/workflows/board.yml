@@ -60,7 +60,7 @@ jobs:
       - name: Build pages
         env:
           BOARD_SHOW_AUTHORS: ${{ vars.BOARD_SHOW_AUTHORS }}
-        run: node eng/board.mjs --stats "${RUNNER_TEMP}/stats.json" --out dist/board
+        run: node eng/board.mjs --stats "${RUNNER_TEMP}/stats.json" --triggers "${{ steps.data.outputs.dir }}/triggers.json" --out dist/board
       - name: Save history
         working-directory: ${{ steps.data.outputs.dir }}
         run: |

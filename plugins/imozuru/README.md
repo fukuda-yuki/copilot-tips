@@ -31,4 +31,4 @@ Copilot のチャットで、次のように頼みます。
 ## 出典とライセンス
 
 - [MaryCache/imozuru](https://github.com/MaryCache/imozuru) の `skills/imozuru/`、commit `808407e501bc5a1e596655b0a6d62e1f3b20ba1b` (v2.2.0) を元にしています。MIT License (Copyright (c) 2026 MaryCache)。ライセンス全文は `skills/imozuru/LICENSE.txt` にあります。
-- このリポジトリでの変更: frontmatter を Copilot 向けに整え (description を1行に、`license` を追加)、Claude Code 固有の表現 (軽いモデル名・`/imozuru` のスラッシュコマンド・検索の記録に書く道具名) と、上流のリポジトリにしか無い `examples/` への参照を外しました。スクリプトと `references/` `assets/` は上流のままです。
+- このリポジトリでの変更: frontmatter を Copilot 向けに整え (description を1行に、`license` と `compatibility` を追加)、Claude Code 固有の表現 (軽いモデル名・`/imozuru` のスラッシュコマンド・検索の記録に書く道具名) と、上流のリポジトリにしか無い `examples/` への参照を外しました。スクリプトと `references/` `assets/` は上流のままです。
