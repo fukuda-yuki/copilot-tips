@@ -43,7 +43,7 @@ function servedManifest(plugin, board) {
  */
 export function withBoardLink(text, skill) {
   const match = /^(\uFEFF?---\r?\n)([\s\S]*?)(\r?\n---(?:\r?\n|$))/.exec(text);
-  if (!match || /^metadata:/m.test(match[2])) return text;
+  if (!match || /^metadata\s*:/m.test(match[2])) return text;
   const eol = match[1].endsWith("\r\n") ? "\r\n" : "\n";
   const added = `${eol}metadata:${eol}  feedback: ${boardSkillUrl(skill)}`;
   return match[1] + match[2] + added + match[3] + text.slice(match[0].length);

@@ -124,7 +124,8 @@ test("ボードが動いていれば、配布物の README・Skill・plugin.json
     assert.ok(text.includes(`metadata:\n  feedback: ${page}\n---\n`), file);
     // AI への指示 (frontmatter の name / description と本文) は正本と同じ
     assert.equal(text.replace(`\nmetadata:\n  feedback: ${page}`, ""), SKILL_MD, file);
-    assert.deepEqual(readFrontmatter(path.join(outDir, file)), { name: "hello", description: "あいさつする", metadata: "" });
+    const fm = readFrontmatter(path.join(outDir, file));
+    assert.deepEqual([fm.name, fm.description], ["hello", "あいさつする"], file);
   }
 });
 
@@ -132,13 +133,15 @@ test("plugin.json に homepage を書いたプラグインと、metadata を書�
   const root = fixture();
   const manifest = path.join(root, "plugins/hello-pack/plugin.json");
   fs.writeFileSync(manifest, JSON.stringify({ ...readJson(manifest), homepage: "https://example.com/" }));
-  const skill = "---\nname: hello\ndescription: あいさつする\nmetadata:\n  author: x\n---\n\n本文\n";
-  write(path.join(root, "skills/hello/SKILL.md"), skill);
-  writeGenerated(root);
   const outDir = path.join(root, "dist");
-  buildDist({ root, outDir, board: true });
-  assert.equal(readJson(path.join(outDir, "plugins/hello-pack/plugin.json")).homepage, "https://example.com/");
-  assert.equal(fs.readFileSync(path.join(outDir, "skills/hello/SKILL.md"), "utf8"), skill);
+  for (const metadata of ["metadata:\n  author: x", "metadata : {}"]) {
+    const skill = `---\nname: hello\ndescription: あいさつする\n${metadata}\n---\n\n本文\n`;
+    write(path.join(root, "skills/hello/SKILL.md"), skill);
+    writeGenerated(root);
+    buildDist({ root, outDir, board: true });
+    assert.equal(readJson(path.join(outDir, "plugins/hello-pack/plugin.json")).homepage, "https://example.com/");
+    assert.equal(fs.readFileSync(path.join(outDir, "skills/hello/SKILL.md"), "utf8"), skill, metadata);
+  }
 });
 
 test("検証エラーがあると配布物を生成しない", () => {
