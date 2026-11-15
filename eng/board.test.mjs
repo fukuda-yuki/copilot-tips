@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { CATALOG, COMPOSITION_NS, PLUGIN_SCHEMA_URL, ROOT } from "./lib.mjs";
 import {
-  boardSkills, buildBoard, freshness, gitEnv, installGuides, navGroups, recordHistory, renderBoard, shortDescription, showAuthorsFrom, skillDates,
+  DATA_FILE, FRESH_DAYS, boardSkills, bundleCommands, buildBoard, freshness, gitEnv, installGuides, navGroups, recordHistory, renderBoard, shortDescription, showAuthorsFrom, skillDates,
 } from "./board.mjs";
 import { collect, discussionMarker } from "./board-collect.mjs";
 
@@ -32,7 +32,7 @@ const stats = {
   generatedAt: "2026-11-14T00:00:00Z",
   skills: {
     hello: {
-      url: "https://github.com/x/y/discussions/1", number: 1, up: 5, commentCount: 1,
+      id: "D_1", url: "https://github.com/x/y/discussions/1", number: 1, up: 5, commentCount: 1,
       comments: [{ url: "https://github.com/x/y/discussions/1#c1", body: "助かった <script>", createdAt: "2026-11-13T01:00:00Z", author: "bob" }],
     },
   },
@@ -105,7 +105,7 @@ test("表の説明は最初の 1 文にして、長ければ切る", () => {
 
 test("一覧と Skill ごとのページを生成する", () => {
   const files = renderBoard({ skills: boardSkills(fixture()), stats });
-  assert.deepEqual(Object.keys(files).sort(), ["board.js", "index.html", "skills/hello/index.html", "skills/solo/index.html", "style.css"]);
+  assert.deepEqual(Object.keys(files).sort(), ["board.js", "index.html", "skills.json", "skills/hello/index.html", "skills/solo/index.html", "style.css"]);
 
   const index = files["index.html"];
   assert.match(index, /<title>copilot-tips<\/title>/);
@@ -180,6 +180,67 @@ test("作成者と感想を書いた人の名前は変数で伏せられる", ()
   }
 });
 
+test("まとめて入れるコマンドは、同じプラグインを 1 回だけ入れ、1 つだけ選んだときは Skill のページと一致する", () => {
+  const config = { repo: CATALOG.repo, catalog: CATALOG.name, distBranch: CATALOG.distBranch };
+  const a = { name: "a", plugins: ["p"] }, b = { name: "b", plugins: ["p"] }, c = { name: "c", plugins: ["q"] }, solo = { name: "solo", plugins: [] };
+  const lines = (selected) => Object.fromEntries(bundleCommands(config, selected).map((g) => [g.id, g.lines]));
+
+  assert.deepEqual(bundleCommands(config, []), []);
+  assert.deepEqual(lines([a, b, c, solo]), {
+    copilot: ["copilot plugin marketplace add fukuda-yuki/copilot-tips", "copilot plugin install p@copilot-tips", "copilot plugin install q@copilot-tips"],
+    vscode: ['"chat.plugins.marketplaces": ["fukuda-yuki/copilot-tips"]'],
+    claude: ["/plugin marketplace add fukuda-yuki/copilot-tips", "/plugin install p@copilot-tips", "/plugin install q@copilot-tips"],
+    apm: ["apm install fukuda-yuki/copilot-tips/plugins/p#marketplace", "apm install fukuda-yuki/copilot-tips/plugins/q#marketplace", "apm install fukuda-yuki/copilot-tips/skills/solo"],
+    skills: ["npx skills add fukuda-yuki/copilot-tips --skill a --skill b --skill c --skill solo"],
+  });
+  assert.deepEqual(Object.keys(lines([solo])), ["apm", "skills"], "プラグインに入っていない Skill だけなら、プラグインの入れ方は出さない");
+
+  for (const skill of [a, solo]) {
+    const single = installGuides(skill);
+    for (const g of bundleCommands(config, [skill])) {
+      const page = single.find((x) => x.id === g.id);
+      const first = page.blocks.filter((x) => !x.skillOnly || skill.plugins.length === 0).flatMap((x) => x.lines);
+      assert.deepEqual(g.lines, first, g.id);
+    }
+  }
+});
+
+test("一覧で Skill を選べ、選ぶ欄は JavaScript が無ければ出さない", () => {
+  const files = renderBoard({ skills: boardSkills(fixture()), stats });
+  assert.match(files["index.html"], /<input type="checkbox" value="hello" data-plugins="hello-pack" aria-label="hello">/);
+  assert.match(files["index.html"], /<section class="bundle" data-config="[^"]*" hidden>/);
+  assert.match(files["style.css"], /\.pick \{ display: none;/);
+  assert.doesNotThrow(() => new Function("document", "localStorage", "navigator", files["board.js"]), "board.js が構文として正しい");
+});
+
+test("エージェントが読む一覧に、数字・送り先・入れ方を出し、感想の本文は出さない", () => {
+  const files = renderBoard({ skills: boardSkills(fixture()), stats });
+  const data = JSON.parse(files[DATA_FILE]);
+  assert.equal(data.generatedAt, "2026-11-14T00:00:00.000Z");
+  assert.deepEqual(data.skills.map((s) => s.name), ["hello", "solo"]);
+  const [hello, solo] = data.skills;
+  assert.deepEqual({ ...hello, install: undefined }, {
+    name: "hello", description: "あいさつする。丁寧に。", page: `${CATALOG.boardUrl}skills/hello/`,
+    plugins: [{ name: "hello-pack", version: "1.0.0" }], published: null, updated: null,
+    likes: 5, comments: 1, thread: { id: "D_1", url: "https://github.com/x/y/discussions/1" }, install: undefined,
+  });
+  assert.deepEqual(hello.install.find((g) => g.tool === "Claude Code").commands, ["/plugin marketplace add fukuda-yuki/copilot-tips\n/plugin install hello-pack@copilot-tips"]);
+  assert.doesNotMatch(hello.install.find((g) => g.tool === "VS Code").note, /</, "note にタグを残さない");
+  assert.equal(solo.thread, null);
+  assert.deepEqual(solo.install.map((g) => g.tool), ["APM", "npx skills"]);
+  assert.doesNotMatch(files[DATA_FILE], /助かった|bob/, "他人が書いた文をエージェントに読ませない");
+});
+
+test("skill-board が読む URL と送り方は、ボードの出力と一致する", () => {
+  const skill = fs.readFileSync(path.join(ROOT, "skills/skill-board/SKILL.md"), "utf8");
+  assert.ok(skill.includes(`\n${CATALOG.boardUrl}${DATA_FILE}\n`));
+  assert.ok(skill.includes(`https://github.com/${CATALOG.repo}`));
+  const data = JSON.parse(renderBoard({ skills: boardSkills(fixture()), stats })[DATA_FILE]);
+  const documented = [...skill.matchAll(/^\| ((?:`[a-z]+` ?)+) \|/gm)].flatMap((m) => m[1].match(/[a-z]+/g));
+  assert.deepEqual(documented.sort(), Object.keys(data.skills[0]).sort(), "SKILL.md の項目の表と skills.json の項目");
+  assert.match(skill, new RegExp(`${FRESH_DAYS} 日以内`));
+});
+
 test("集計データが無くてもページを作れる (dist/board に出力)", () => {
   const root = fixture();
   const { outDir } = buildBoard({ root, now: new Date("2026-11-14T00:00:00Z") });
@@ -236,7 +297,7 @@ test("感想スレッドの 👍 と感想を集計し、非表示のコメン�
     generatedAt: "2026-11-14T00:00:00.000Z",
     skills: {
       hello: {
-        url: "https://github.com/x/y/discussions/2", number: 2, up: 3, commentCount: 1,
+        id: "D2", url: "https://github.com/x/y/discussions/2", number: 2, up: 3, commentCount: 1,
         comments: [{ url: "u1", body: "よい", createdAt: "2026-11-13T00:00:00Z", author: "bob" }],
       },
     },

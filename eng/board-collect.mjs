@@ -89,6 +89,7 @@ export function summarize(discussion) {
   const visible = discussion.comments.nodes.filter((c) => !c.isMinimized);
   const hidden = discussion.comments.nodes.length - visible.length;
   return {
+    id: discussion.id,
     url: discussion.url,
     number: discussion.number,
     up: discussion.reactions.totalCount,
