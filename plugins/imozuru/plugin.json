@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "imozuru",
   "description": "知らない分野を、用語・人・媒体から芋づる式にたどって原文を集め、抜き書きと詳細レポートにまとめるプラグイン。",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": {
     "name": "fukuda-yuki",
     "url": "https://github.com/fukuda-yuki"

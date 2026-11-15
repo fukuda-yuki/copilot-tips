@@ -6,9 +6,9 @@ import os from "node:os";
 import path from "node:path";
 import { CATALOG, COMPOSITION_NS, PLUGIN_SCHEMA_URL, ROOT } from "./lib.mjs";
 import {
-  DATA_FILE, FRESH_DAYS, boardSkills, bundleCommands, buildBoard, freshness, gitEnv, installGuides, navGroups, recordHistory, renderBoard, shortDescription, showAuthorsFrom, skillDates,
+  DATA_FILE, FRESH_DAYS, askPhrases, boardSkills, bundledSummary, descriptionHash, orderPhrases, bundleCommands, buildBoard, freshness, gitEnv, installGuides, navGroups, recordHistory, renderBoard, shortDescription, showAuthorsFrom, skillDates,
 } from "./board.mjs";
-import { collect, discussionMarker } from "./board-collect.mjs";
+import { REQUEST_CATEGORY, collect, discussionMarker } from "./board-collect.mjs";
 
 function write(file, text) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -41,10 +41,10 @@ const stats = {
 test("Skill の説明・同梱プラグイン・作成者を正本から読む", () => {
   assert.deepEqual(boardSkills(fixture()), [
     {
-      name: "hello", description: "あいさつする。丁寧に。", plugins: ["hello-pack"], versions: { "hello-pack": "1.0.0" },
+      name: "hello", description: "あいさつする。丁寧に。", requires: "", bundled: "", plugins: ["hello-pack"], versions: { "hello-pack": "1.0.0" },
       authors: [{ name: "alice", url: "https://github.com/alice" }], published: null, updated: null,
     },
-    { name: "solo", description: "単体の <Skill>", plugins: [], versions: {}, authors: [], published: null, updated: null },
+    { name: "solo", description: "単体の <Skill>", requires: "", bundled: "", plugins: [], versions: {}, authors: [], published: null, updated: null },
   ]);
 });
 
@@ -217,10 +217,11 @@ test("エージェントが読む一覧に、数字・送り先・入れ方を�
   const files = renderBoard({ skills: boardSkills(fixture()), stats });
   const data = JSON.parse(files[DATA_FILE]);
   assert.equal(data.generatedAt, "2026-11-14T00:00:00.000Z");
+  assert.equal(data.requests, null);
   assert.deepEqual(data.skills.map((s) => s.name), ["hello", "solo"]);
   const [hello, solo] = data.skills;
   assert.deepEqual({ ...hello, install: undefined }, {
-    name: "hello", description: "あいさつする。丁寧に。", page: `${CATALOG.boardUrl}skills/hello/`,
+    name: "hello", description: "あいさつする。丁寧に。", ask: [], requires: null, page: `${CATALOG.boardUrl}skills/hello/`,
     plugins: [{ name: "hello-pack", version: "1.0.0" }], published: null, updated: null,
     likes: 5, comments: 1, thread: { id: "D_1", url: "https://github.com/x/y/discussions/1" }, install: undefined,
   });
@@ -241,6 +242,88 @@ test("skill-board が読む URL と送り方は、ボードの出力と一致す
   assert.match(skill, new RegExp(`${FRESH_DAYS} 日以内`));
 });
 
+/** 頼み方・必須環境・同梱物のある Skill を 1 つ足したカタログ。 */
+function askFixture() {
+  const root = fixture();
+  write(path.join(root, "skills/ask/SKILL.md"), "---\nname: ask\ndescription: 設定を点検する。「診断して」「doctor」「軽くしたい」「a」「b」「c」「診断して」の依頼で使う。\ncompatibility: Python 3.10 以上\n---\n");
+  write(path.join(root, "skills/ask/scripts/a.py"), "");
+  write(path.join(root, "skills/ask/scripts/b.py"), "");
+  write(path.join(root, "skills/ask/references/r.md"), "");
+  write(path.join(root, "skills/ask/assets/i.png"), "");
+  write(path.join(root, "skills/ask/LICENSE.txt"), "");
+  return root;
+}
+
+test("頼み方は description の「」から抜き、一覧と Skill のページに出す", () => {
+  assert.deepEqual(askPhrases("x「a」と「b」。「a」「」"), ["a", "b"]);
+  assert.deepEqual(askPhrases("no phrases"), []);
+
+  const files = renderBoard({ skills: boardSkills(askFixture()), stats });
+  assert.match(files["index.html"], /<span class="ask">「診断して」 「doctor」<\/span>/);
+  const page = files["skills/ask/index.html"];
+  assert.match(page, /<p>設定を点検する。<\/p>\n<h2 id="ask">頼み方<\/h2>/, "description の全文の代わりに最初の 1 文を出す");
+  assert.match(page, /<li><span id="ask-0">診断して<\/span><button class="copy" type="button" data-copy="ask-0">コピー<\/button><\/li>/);
+  assert.match(page, /<summary>ほか 1 件<\/summary>\n<ul class="say">\n<li><span id="ask-5">c</, "6 つ目からは畳む");
+  assert.doesNotMatch(files["skills/hello/index.html"], /id="ask"/, "頼み方が無ければ節を出さない");
+  assert.match(files["skills/hello/index.html"], /<p>あいさつする。丁寧に。<\/p>/);
+  assert.deepEqual(JSON.parse(files[DATA_FILE]).skills.find((s) => s.name === "ask").ask, ["診断して", "doctor", "軽くしたい", "a", "b", "c"]);
+});
+
+test("呼ばれると確かめた頼み方を先に並べ、description が変わったあとの結果は使わない", () => {
+  const description = "「a」「b」「c」";
+  const check = { hash: descriptionHash(description), phrases: { a: { fired: false }, c: { fired: true } } };
+  assert.deepEqual(orderPhrases(["a", "b", "c"], description, check), ["c", "a", "b"]);
+  assert.deepEqual(orderPhrases(["a", "b", "c"], description, { ...check, hash: "old" }), ["a", "b", "c"]);
+  assert.deepEqual(orderPhrases(["a", "b", "c"], description, undefined), ["a", "b", "c"]);
+
+  const skills = boardSkills(askFixture());
+  const hash = descriptionHash(skills.find((s) => s.name === "ask").description);
+  const files = renderBoard({ skills, stats, triggers: { skills: { ask: { hash, phrases: { doctor: { fired: true } } } } } });
+  assert.match(files["skills/ask/index.html"], /<span id="ask-0">doctor</);
+  assert.match(files["index.html"], /「doctor」 「診断して」/);
+});
+
+test("必須環境は SKILL.md の compatibility、同梱は Skill のフォルダの中身から出す", () => {
+  const root = askFixture();
+  assert.equal(bundledSummary(path.join(root, "skills/ask")), "Python スクリプト 2 本、資料 1 件");
+  assert.equal(bundledSummary(path.join(root, "skills/hello")), "");
+  const files = renderBoard({ skills: boardSkills(root), stats });
+  assert.match(files["skills/ask/index.html"], /必須環境<\/dt><dd>Python 3\.10 以上<\/dd>/);
+  assert.match(files["skills/ask/index.html"], /同梱<\/dt><dd>Python スクリプト 2 本、資料 1 件<\/dd>/);
+  assert.doesNotMatch(files["skills/hello/index.html"], /必須環境|同梱</);
+  assert.equal(JSON.parse(files[DATA_FILE]).skills.find((s) => s.name === "ask").requires, "Python 3.10 以上");
+});
+
+test("ほしい Skill は、投稿先を全ページの上に、要望を票の多い順で一覧に出す", () => {
+  const requests = {
+    url: "https://github.com/x/y/discussions/new?category=ideas", repositoryId: "R_1", categoryId: "DIC_1",
+    items: [{ title: "PR の説明を書く <b>", url: "https://github.com/x/y/discussions/9", up: 3, createdAt: "2026-11-13T00:00:00Z" }],
+  };
+  const files = renderBoard({ skills: boardSkills(fixture()), stats: { ...stats, requests } });
+  for (const file of ["index.html", "skills/hello/index.html"]) {
+    assert.match(files[file], /<a href="https:\/\/github\.com\/x\/y\/discussions\/new\?category=ideas">ほしい Skill を投稿<\/a>/, file);
+  }
+  assert.match(files["index.html"], /<h2>ほしい Skill<\/h2>/);
+  assert.match(files["index.html"], /<a href="https:\/\/github\.com\/x\/y\/discussions\/9">PR の説明を書く &lt;b&gt;<\/a><\/td><td class="n up">3</);
+  assert.deepEqual(JSON.parse(files[DATA_FILE]).requests, { url: requests.url, repositoryId: "R_1", categoryId: "DIC_1" });
+  assert.doesNotMatch(files[DATA_FILE], /PR の説明/, "他人が書いた題をエージェントに読ませない");
+
+  const empty = renderBoard({ skills: boardSkills(fixture()), stats: { ...stats, requests: { ...requests, items: [] } } })["index.html"];
+  assert.doesNotMatch(empty, /<h2>ほしい Skill<\/h2>/, "要望が無ければ一覧の節を出さない");
+  assert.match(empty, />ほしい Skill を投稿</);
+  assert.doesNotMatch(renderBoard({ skills: boardSkills(fixture()), stats })["index.html"], /ほしい Skill/, "受け付けていなければ出さない");
+});
+
+test("skill-board の要望の送り方と投稿フォームは、ボードの設定と一致する", () => {
+  const skill = fs.readFileSync(path.join(ROOT, "skills/skill-board/SKILL.md"), "utf8");
+  for (const key of ["requests.url", "requests.repositoryId", "requests.categoryId"]) assert.ok(skill.includes(key), key);
+  const form = path.join(ROOT, ".github/DISCUSSION_TEMPLATE", `${REQUEST_CATEGORY.toLowerCase()}.yml`);
+  assert.ok(fs.existsSync(form), "投稿フォームのファイル名は、カテゴリの slug と同じにする");
+  for (const label of [...fs.readFileSync(form, "utf8").matchAll(/^\s+id: want[\s\S]*?label: (.+)$/gm)].map((m) => m[1])) {
+    assert.ok(skill.includes(`### ${label}`), "チャットから送る本文の見出しを、フォームの欄の名前とそろえる");
+  }
+});
+
 test("集計データが無くてもページを作れる (dist/board に出力)", () => {
   const root = fixture();
   const { outDir } = buildBoard({ root, now: new Date("2026-11-14T00:00:00Z") });
@@ -250,7 +333,7 @@ test("集計データが無くてもページを作れる (dist/board に出力)
 
 // --- 集計 ---
 
-function fakeGitHub({ discussions = [], enabled = true } = {}) {
+function fakeGitHub({ discussions = [], enabled = true, requests = null } = {}) {
   const calls = [];
   let next = 100;
   const node = (n, skill, up, comments = [], by = "bot") => ({
@@ -269,7 +352,14 @@ function fakeGitHub({ discussions = [], enabled = true } = {}) {
       return { createDiscussion: { discussion: d } };
     }
     if (query.includes("discussionCategories")) {
-      return { repository: { id: "R1", hasDiscussionsEnabled: enabled, discussionCategories: { nodes: [{ id: "C1", name: "General" }] } } };
+      const nodes = [{ id: "C1", name: "General", slug: "general" }, ...(requests ? [{ id: "C2", name: REQUEST_CATEGORY, slug: "ideas" }] : [])];
+      return { repository: { id: "R1", hasDiscussionsEnabled: enabled, discussionCategories: { nodes } } };
+    }
+    if (query.includes("upvoteCount")) {
+      assert.equal(variables.categoryId, "C2");
+      // 2 件ずつページを分けて、ページ送りも確かめる
+      const start = variables.cursor ? Number(variables.cursor) : 0;
+      return { repository: { discussions: { pageInfo: { hasNextPage: start + 2 < requests.length, endCursor: String(start + 2) }, nodes: requests.slice(start, start + 2) } } };
     }
     // 1 件ずつページを分けて、ページ送りも確かめる
     const start = variables.cursor ? Number(variables.cursor) : 0;
@@ -301,6 +391,7 @@ test("感想スレッドの 👍 と感想を集計し、非表示のコメン�
         comments: [{ url: "u1", body: "よい", createdAt: "2026-11-13T00:00:00Z", author: "bob" }],
       },
     },
+    requests: null,
   });
 });
 
@@ -328,6 +419,23 @@ test("目印があっても、workflow とメンテナー以外が立てたス�
   assert.notEqual(result.skills.hello.number, 1);
   assert.equal(result.skills.hello.up, 0);
   assert.equal(result.skills.solo.number, 2);
+});
+
+test("ほしい Skill は開いている要望だけを票の多い順に集め、カテゴリが無ければ集めない", async () => {
+  const q = (n, up, extra = {}) => ({ title: `ほしい Skill: t${n}`, url: `u${n}`, body: "b", closed: false, upvoteCount: up, createdAt: `2026-11-1${n}T00:00:00Z`, ...extra });
+  const { graphql } = fakeGitHub({
+    discussions: [{ number: 2, skill: "hello", up: 1 }],
+    requests: [q(1, 2), q(2, 5), q(3, 9, { closed: true }), q(4, 9, { body: discussionMarker("hello") }), q(5, 2)],
+  });
+  const { requests } = await collect({ skills: [{ name: "hello" }], graphql, owner: "x", name: "y" });
+  assert.deepEqual(requests, {
+    url: "https://github.com/x/y/discussions/new?category=ideas", repositoryId: "R1", categoryId: "C2",
+    items: [
+      { title: "t2", url: "u2", up: 5, createdAt: "2026-11-12T00:00:00Z" },
+      { title: "t5", url: "u5", up: 2, createdAt: "2026-11-15T00:00:00Z" },
+      { title: "t1", url: "u1", up: 2, createdAt: "2026-11-11T00:00:00Z" },
+    ],
+  });
 });
 
 test("Discussions が無効、またはカテゴリが無ければ分かるように失敗する", async () => {

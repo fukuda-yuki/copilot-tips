@@ -4,6 +4,8 @@
 //  - Skill とスレッドの対応は、スレッド本文に埋め込んだ目印 (discussionMarker) で取る。
 //    タイトルを書き換えたり、カテゴリを移したりしても対応は崩れない。
 //    目印は誰でも書けるので、この workflow 自身かメンテナーが立てたスレッドだけを採用する
+//  - 「ほしい Skill」は、REQUEST_CATEGORY のカテゴリにある開いているスレッドを票 (upvote) の多い順に集める。
+//    カテゴリが無ければ集めず、ページにも出さない
 //
 // 使い方 (GitHub Actions から実行する):
 //   GITHUB_TOKEN=... GITHUB_REPOSITORY=owner/name \
@@ -16,6 +18,10 @@ import { CATALOG, boardSkillUrl } from "./lib.mjs";
 import { boardSkills, dayOf, parseArgs, recordHistory } from "./board.mjs";
 
 export const DEFAULT_CATEGORY = "General";
+/** 「ほしい Skill」を受け付ける Discussions のカテゴリ名。投稿フォームは .github/DISCUSSION_TEMPLATE/<slug>.yml。 */
+export const REQUEST_CATEGORY = "Ideas";
+/** 投稿フォームが題の頭に入れる文字 (.github/DISCUSSION_TEMPLATE の title)。見出しと重なるので一覧では外す。 */
+const REQUEST_TITLE_PREFIX = /^ほしい Skill[:：]\s*/;
 const MAX_COMMENTS = 100;
 
 export const discussionMarker = (skill) => `<!-- ${CATALOG.name}-board skill: ${skill} -->`;
@@ -38,7 +44,7 @@ const REPO_QUERY = `query($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
     id
     hasDiscussionsEnabled
-    discussionCategories(first: 100) { nodes { id name } }
+    discussionCategories(first: 100) { nodes { id name slug } }
   }
 }`;
 
@@ -57,6 +63,15 @@ const DISCUSSIONS_QUERY = `query($owner: String!, $name: String!, $cursor: Strin
     discussions(first: 50, after: $cursor) {
       pageInfo { hasNextPage endCursor }
       nodes { ${DISCUSSION_FIELDS} }
+    }
+  }
+}`;
+
+const REQUESTS_QUERY = `query($owner: String!, $name: String!, $categoryId: ID!, $cursor: String) {
+  repository(owner: $owner, name: $name) {
+    discussions(first: 100, after: $cursor, categoryId: $categoryId) {
+      pageInfo { hasNextPage endCursor }
+      nodes { title url body closed upvoteCount createdAt }
     }
   }
 }`;
@@ -95,6 +110,33 @@ export function summarize(discussion) {
     up: discussion.reactions.totalCount,
     commentCount: discussion.comments.totalCount - hidden,
     comments: visible.map((c) => ({ url: c.url, body: c.bodyText, createdAt: c.createdAt, author: c.author?.login ?? null })),
+  };
+}
+
+/**
+ * 「ほしい Skill」の投稿先と、開いている要望を票の多い順で返す。カテゴリが無ければ null。
+ * 解決した要望は GitHub で閉じると一覧から外れる。感想スレッド (目印つき) は要望として数えない。
+ */
+export async function collectRequests({ repo, graphql, owner, name, category = REQUEST_CATEGORY }) {
+  const target = repo.discussionCategories.nodes.find((c) => c.name === category);
+  if (!target) return null;
+  // 閉じた要望が増えても開いている要望を落とさないよう、全部たどってから絞る
+  const nodes = [];
+  let cursor = null;
+  do {
+    const page = (await graphql(REQUESTS_QUERY, { owner, name, categoryId: target.id, cursor })).repository.discussions;
+    nodes.push(...page.nodes);
+    cursor = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
+  } while (cursor);
+  const items = nodes
+    .filter((d) => !d.closed && !MARKER_PATTERN.test(d.body ?? ""))
+    .map((d) => ({ title: d.title.replace(REQUEST_TITLE_PREFIX, "").trim() || d.title, url: d.url, up: d.upvoteCount, createdAt: d.createdAt }))
+    .sort((a, b) => b.up - a.up || b.createdAt.localeCompare(a.createdAt));
+  return {
+    url: `https://github.com/${owner}/${name}/discussions/new?category=${encodeURIComponent(target.slug)}`,
+    repositoryId: repo.id,
+    categoryId: target.id,
+    items,
   };
 }
 
@@ -142,6 +184,7 @@ export async function collect({ skills, graphql, owner, name, category = DEFAULT
   return {
     generatedAt: now.toISOString(),
     skills: Object.fromEntries(skills.map((s) => [s.name, summarize(bySkill.get(s.name))])),
+    requests: await collectRequests({ repo, graphql, owner, name }),
   };
 }
 
@@ -164,7 +207,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       fs.writeFileSync(file, JSON.stringify(value, null, 2) + "\n", "utf8");
     }
     const total = Object.values(stats.skills).reduce((a, s) => a + s.up, 0);
-    console.log(`集計しました: Skill ${Object.keys(stats.skills).length} 件、👍 合計 ${total}`);
+    console.log(`集計しました: Skill ${Object.keys(stats.skills).length} 件、👍 合計 ${total}、ほしい Skill ${stats.requests ? `${stats.requests.items.length} 件` : `なし (カテゴリ "${REQUEST_CATEGORY}" がありません)`}`);
   } catch (e) {
     console.error(e.message);
     process.exit(1);

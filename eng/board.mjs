@@ -4,12 +4,14 @@
 //  - 公開日と最終更新日は skills/<name>/ の git の履歴から読む (浅い clone では読まない)
 //  - 👍 と感想は board-collect.mjs が集計した stats.json から読む
 //  - 同じ内容を skills.json にも出す。エージェントが読む一覧で、skills/skill-board が使う
+//  - 頼み方は description の「」から抜く。trigger-check.mjs の結果があれば、呼ばれると確かめた頼み方を先に並べる
 //  - 出力は dist/board/ (正本には書かない)
 //
-// 使い方: node eng/board.mjs [--stats <stats.json>] [--out <dir>]
+// 使い方: node eng/board.mjs [--stats <stats.json>] [--triggers <triggers.json>] [--out <dir>]
 //   stats を省略すると、数字が 0 のページを作る (見た目の確認用)。
 //   環境変数 BOARD_SHOW_AUTHORS=false で、Skill の作成者と感想を書いた人の名前を伏せる。
 import { execFileSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -47,7 +49,45 @@ export function skillDates(root, name) {
   }
 }
 
-/** ボードに載せる Skill の一覧。説明は SKILL.md、同梱先と作成者は plugin.json、日付は git の履歴から読む。 */
+/** description の「」の中を、頼み方として取り出す。同じ文は 1 回だけ。 */
+export function askPhrases(description) {
+  return [...new Set([...String(description ?? "").matchAll(/「([^「」]+)」/g)].map((m) => m[1].trim()).filter(Boolean))];
+}
+
+/** description の版。頼み方の確認結果 (trigger-check.mjs) が、いまの description のものかを見分ける。 */
+export const descriptionHash = (description) => crypto.createHash("sha256").update(String(description ?? "")).digest("hex").slice(0, 12);
+
+/**
+ * 頼み方を、呼ばれると確かめたものが先になるよう並べ替える。確かめていないもの・呼ばれなかったものは元の順で後ろに置く。
+ * description が変わったあとの古い結果は使わない。
+ */
+export function orderPhrases(phrases, description, check) {
+  if (!check || check.hash !== descriptionHash(description)) return phrases;
+  const fired = (p) => check.phrases?.[p]?.fired === true;
+  return [...phrases.filter(fired), ...phrases.filter((p) => !fired(p))];
+}
+
+const SCRIPT_KINDS = { ".py": "Python", ".js": "Node.js", ".mjs": "Node.js", ".cjs": "Node.js", ".ts": "TypeScript", ".sh": "シェル", ".ps1": "PowerShell" };
+const DOC_EXTENSIONS = new Set([".md", ".txt"]);
+
+/** SKILL.md のほかに同梱しているスクリプトと資料を「Python スクリプト 10 本、資料 1 件」の形で返す。無ければ空文字。画像などは数えない。 */
+export function bundledSummary(dir) {
+  const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
+  const files = fs.existsSync(dir) ? walk(dir).filter((f) => !/^(SKILL\.md|LICENSE(\..*)?)$/i.test(path.relative(dir, f))) : [];
+  const scripts = new Map();
+  let docs = 0;
+  for (const f of files) {
+    const ext = path.extname(f).toLowerCase();
+    if (SCRIPT_KINDS[ext]) scripts.set(SCRIPT_KINDS[ext], (scripts.get(SCRIPT_KINDS[ext]) ?? 0) + 1);
+    else if (DOC_EXTENSIONS.has(ext)) docs++;
+  }
+  return [
+    ...[...scripts].map(([kind, n]) => `${kind} スクリプト ${n} 本`),
+    ...(docs ? [`資料 ${docs} 件`] : []),
+  ].join("、");
+}
+
+/** ボードに載せる Skill の一覧。説明と必須環境 (compatibility) は SKILL.md、同梱先と作成者は plugin.json、日付は git の履歴から読む。 */
 export function boardSkills(root = ROOT, dates = (name) => skillDates(root, name)) {
   const catalog = loadCatalog(root);
   const plugins = readPlugins(catalog);
@@ -58,9 +98,12 @@ export function boardSkills(root = ROOT, dates = (name) => skillDates(root, name
       const author = p.manifest.author;
       if (author?.name && !authors.some((a) => a.name === author.name)) authors.push({ name: author.name, url: author.url });
     }
+    const fm = readFrontmatter(skill.file);
     return {
       name: skill.name,
-      description: readFrontmatter(skill.file)?.description ?? "",
+      description: fm?.description ?? "",
+      requires: fm?.compatibility ?? "",
+      bundled: bundledSummary(skill.dir),
       plugins: inPlugins.map((p) => p.name),
       versions: Object.fromEntries(inPlugins.map((p) => [p.name, p.version])),
       authors,
@@ -168,16 +211,19 @@ export function boardRows(skills, stats) {
 export const DATA_FILE = "skills.json";
 
 /**
- * エージェントが読む一覧。ページと同じ数字に、いいね・感想の送り先 (感想スレッドの id) と入れ方を付ける。
- * 感想の本文と書いた人は入れない。他人が書いた文をエージェントに読ませないため。
+ * エージェントが読む一覧。ページと同じ数字に、いいね・感想の送り先 (感想スレッドの id)、入れ方、ほしい Skill の投稿先を付ける。
+ * 感想の本文・要望の題・書いた人は入れない。他人が書いた文をエージェントに読ませないため。
  */
-export function boardData(rows, { generatedAt }) {
+export function boardData(rows, { generatedAt, requests = null }) {
   const plain = (html) => html.replace(/<[^>]+>/g, "");
   return {
     generatedAt: generatedAt.toISOString(),
+    requests: requests ? { url: requests.url, repositoryId: requests.repositoryId, categoryId: requests.categoryId } : null,
     skills: rows.map((r) => ({
       name: r.name,
       description: r.description,
+      ask: r.ask ?? askPhrases(r.description),
+      requires: r.requires || null,
       page: boardSkillUrl(r.name),
       plugins: r.plugins.map((p) => ({ name: p, version: r.versions?.[p] ?? null })),
       published: r.published ?? null,
@@ -200,9 +246,12 @@ export function boardData(rows, { generatedAt }) {
 
 const esc = (text) => String(text ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
+/** 説明の最初の 1 文。 */
+export const firstSentence = (text) => /^[\s\S]*?(?:。|\.\s|$)/.exec(String(text ?? "").trim())[0].trim();
+
 /** 表に載せる短い説明 (最初の 1 文、長ければ切る)。全文は Skill のページに出す。 */
 export function shortDescription(text, max = 80) {
-  const first = /^[\s\S]*?(?:。|\.\s|$)/.exec(text.trim())[0].trim();
+  const first = firstSentence(text);
   return first.length > max ? first.slice(0, max - 1) + "…" : first;
 }
 
@@ -322,6 +371,16 @@ pre { font-family: var(--mono); font-size: 0.875rem; line-height: 1.8; margin: 0
 .copy { font: inherit; font-size: 0.875rem; font-weight: 700; min-height: 44px; padding: 6px 16px; white-space: nowrap; cursor: pointer;
   color: var(--link); background: var(--bg); border: 1px solid var(--link); border-radius: 8px; }
 
+.say { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.say li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.say span { min-width: 0; overflow-wrap: anywhere; }
+.say .copy { min-height: 36px; padding: 2px 12px; }
+details.more .say { border-top: 0; }
+details.more summary { cursor: pointer; padding: 12px 0; color: var(--link); font-size: 0.875rem; }
+.ask { display: block; font-size: 0.875rem; margin-top: 6px; max-width: 34em; }
+.links { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+td.req { overflow-wrap: anywhere; }
+
 .voices { border-top: 1px solid var(--line); }
 .voice { padding: 16px 0; border-bottom: 1px solid var(--line); }
 .voice p { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
@@ -433,7 +492,7 @@ document.querySelectorAll("button[data-copy]").forEach((b) => b.addEventListener
 }));
 `;
 
-function page({ title, base, current, groups, body }) {
+function page({ title, base, current, groups, body, requests }) {
   const nav = groups.map((g) => `<h2>${esc(g.title)}</h2>
 <ul>
 ${g.skills.map((s) => `<li><a href="${base}skills/${esc(s)}/"${s === current ? ' aria-current="page"' : ""}>${esc(s)}</a></li>`).join("\n")}
@@ -448,7 +507,7 @@ ${g.skills.map((s) => `<li><a href="${base}skills/${esc(s)}/"${s === current ? '
 <link rel="stylesheet" href="${base}style.css">
 </head>
 <body>
-<header class="top"><div class="bar"><a class="site" href="${base || "./"}">${esc(CATALOG.name)}</a><a href="https://github.com/${CATALOG.repo}">GitHub</a></div></header>
+<header class="top"><div class="bar"><a class="site" href="${base || "./"}">${esc(CATALOG.name)}</a><span class="links">${requests ? `<a href="${esc(requests.url)}">${REQUEST_LINK}</a>` : ""}<a href="https://github.com/${CATALOG.repo}">GitHub</a></span></div></header>
 <div class="layout">
 <nav class="side" aria-label="Skill">
 ${nav}
@@ -463,18 +522,28 @@ ${body}
 `;
 }
 
+/** ほしい Skill の投稿フォームへのリンクの文字。全ページの上の帯に出す。 */
+const REQUEST_LINK = "ほしい Skill を投稿";
+/** 一覧に出す要望の数。 */
+const MAX_REQUESTS = 20;
+/** Skill のページで、畳まずに見せる頼み方の数。残りは「ほか n 件」に入れる。 */
+const SHOWN_PHRASES = 5;
+
 const TAGS = { new: "New", updated: "Updated" };
 const tag = (fresh) => (fresh ? `<span class="tag ${fresh}">${TAGS[fresh]}</span>` : "");
 const dayOrBlank = (iso) => (iso ? dayOf(new Date(iso)) : "");
 
-export function renderIndex(rows, { generatedAt }) {
+/** 一覧の行に出す頼み方 (先頭の 2 つ)。 */
+const ask = (row) => (row.ask.length > 0 ? `<span class="ask">${row.ask.slice(0, 2).map((p) => `「${esc(p)}」`).join(" ")}</span>` : "");
+
+export function renderIndex(rows, { generatedAt, requests = null }) {
   const body = rows.map((r) => {
     const act = r.url
       ? `<a href="${esc(r.url)}">いいねを送る</a><a href="${esc(r.url)}">感想を書く</a>`
       : "";
     return `      <tr data-updated="${esc(r.updated ?? "")}">
         <td class="pick"><label><input type="checkbox" value="${esc(r.name)}" data-plugins="${esc(r.plugins.join(","))}" aria-label="${esc(r.name)}"></label></td>
-        <td><a class="skill" href="skills/${esc(r.name)}/">${esc(r.name)}</a>${tag(freshness(r, generatedAt))}<span class="sub">${esc(shortDescription(r.description))}</span></td>
+        <td><a class="skill" href="skills/${esc(r.name)}/">${esc(r.name)}</a>${tag(freshness(r, generatedAt))}<span class="sub">${esc(shortDescription(r.description))}</span>${ask(r)}</td>
         <td class="n up">${r.up}</td>
         <td class="n">${r.commentCount}</td>
         <td class="date">${esc(dayOrBlank(r.updated))}</td>
@@ -482,9 +551,24 @@ export function renderIndex(rows, { generatedAt }) {
       </tr>`;
   }).join("\n");
 
+  // 投稿先は上の帯にある。ここには要望があるときだけ一覧を出す
+  const wanted = requests?.items.length > 0
+    ? `<section id="requests">
+<h2>ほしい Skill</h2>
+<table>
+  <thead><tr><th>要望</th><th class="n">票</th></tr></thead>
+  <tbody>
+${requests.items.slice(0, MAX_REQUESTS).map((q) => `    <tr><td class="req"><a href="${esc(q.url)}">${esc(q.title)}</a></td><td class="n up">${q.up}</td></tr>`).join("\n")}
+  </tbody>
+</table>
+</section>
+`
+    : "";
+
   return page({
     title: CATALOG.name,
     base: "",
+    requests,
     groups: navGroups(rows),
     body: `<h1>Skill</h1>
 <div class="sort" role="group" aria-label="並び順" hidden>
@@ -514,13 +598,15 @@ ${body}
 <div class="cmd"><pre id="bundle-cmd"></pre><button class="copy" type="button" data-copy="bundle-cmd">コピー</button></div>
 <p class="note" hidden></p>
 </section>
-${footer(generatedAt)}`,
+${wanted}${footer(generatedAt)}`,
   });
 }
 
-export function renderSkill(row, { generatedAt, showAuthors, groups }) {
+export function renderSkill(row, { generatedAt, showAuthors, groups, requests = null }) {
   const { repo, sourceBranch } = CATALOG;
   const facts = [];
+  if (row.requires) facts.push(["必須環境", esc(row.requires)]);
+  if (row.bundled) facts.push(["同梱", esc(row.bundled)]);
   if (row.plugins.length > 0) {
     const version = (p) => (row.versions?.[p] ? ` <span class="mono">v${esc(row.versions[p])}</span>` : "");
     facts.push(["プラグイン", row.plugins.map((p) => `<a class="mono" href="https://github.com/${repo}/tree/${sourceBranch}/plugins/${esc(p)}">${esc(p)}</a>${version(p)}`).join("、")]);
@@ -568,13 +654,31 @@ ${comments.map((c) => `<div class="voice">
     ? `<p class="send"><a href="${esc(row.url)}">いいねを送る</a><a href="${esc(row.url)}">感想を書く</a></p>`
     : "";
 
+  // 頼み方がある Skill は、AI 向けの description 全文の代わりに、最初の 1 文と頼み方を出す
+  const say = (p, i) => `<li><span id="ask-${i}">${esc(p)}</span><button class="copy" type="button" data-copy="ask-${i}">コピー</button></li>`;
+  const shown = row.ask.slice(0, SHOWN_PHRASES).map(say);
+  const rest = row.ask.slice(SHOWN_PHRASES).map((p, i) => say(p, i + SHOWN_PHRASES));
+  const lead = row.ask.length > 0
+    ? `<p>${esc(firstSentence(row.description))}</p>
+<h2 id="ask">頼み方</h2>
+<ul class="say">
+${shown.join("\n")}
+</ul>${rest.length > 0 ? `
+<details class="more"><summary>ほか ${rest.length} 件</summary>
+<ul class="say">
+${rest.join("\n")}
+</ul>
+</details>` : ""}`
+    : `<p>${esc(row.description)}</p>`;
+
   return page({
     title: `${row.name} - ${CATALOG.name}`,
     base: "../../",
     current: row.name,
     groups,
+    requests,
     body: `<h1><span class="mono">${esc(row.name)}</span>${tag(freshness(row, generatedAt))}</h1>
-<p>${esc(row.description)}</p>
+${lead}
 ${actions}
 <dl>
 ${facts.map(([k, v]) => `  <div><dt>${k}</dt><dd>${v}</dd></div>`).join("\n")}
@@ -592,17 +696,18 @@ ${footer(generatedAt)}`,
 }
 
 /** ボードのファイル一式を { 相対パス: 内容 } で返す。 */
-export function renderBoard({ skills, stats, now = new Date(), showAuthors = true }) {
+export function renderBoard({ skills, stats, triggers = null, now = new Date(), showAuthors = true }) {
   const generatedAt = stats?.generatedAt ? new Date(stats.generatedAt) : now;
-  const rows = boardRows(skills, stats);
+  const rows = boardRows(skills, stats).map((r) => ({ ...r, ask: orderPhrases(askPhrases(r.description), r.description, triggers?.skills?.[r.name]) }));
   const groups = navGroups(rows);
+  const requests = stats?.requests ?? null;
   const files = {
-    "index.html": renderIndex(rows, { generatedAt }),
+    "index.html": renderIndex(rows, { generatedAt, requests }),
     "style.css": STYLE,
     "board.js": SCRIPT,
-    [DATA_FILE]: JSON.stringify(boardData(rows, { generatedAt }), null, 2) + "\n",
+    [DATA_FILE]: JSON.stringify(boardData(rows, { generatedAt, requests }), null, 2) + "\n",
   };
-  for (const row of rows) files[`skills/${row.name}/index.html`] = renderSkill(row, { generatedAt, showAuthors, groups });
+  for (const row of rows) files[`skills/${row.name}/index.html`] = renderSkill(row, { generatedAt, showAuthors, groups, requests });
   return files;
 }
 
@@ -613,10 +718,11 @@ export function showAuthorsFrom(value) {
 
 const readJsonIfExists = (file) => (file && fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : null);
 
-export function buildBoard({ root = ROOT, statsFile, outDir = path.join(root, "dist", "board"), showAuthors = true, now } = {}) {
+export function buildBoard({ root = ROOT, statsFile, triggersFile, outDir = path.join(root, "dist", "board"), showAuthors = true, now } = {}) {
   const files = renderBoard({
     skills: boardSkills(root),
     stats: readJsonIfExists(statsFile),
+    triggers: readJsonIfExists(triggersFile),
     now,
     showAuthors,
   });
@@ -644,6 +750,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const args = parseArgs(process.argv.slice(2));
     const { outDir, files } = buildBoard({
       statsFile: args.stats,
+      triggersFile: args.triggers,
       outDir: args.out ? path.resolve(args.out) : undefined,
       showAuthors: showAuthorsFrom(process.env.BOARD_SHOW_AUTHORS),
     });

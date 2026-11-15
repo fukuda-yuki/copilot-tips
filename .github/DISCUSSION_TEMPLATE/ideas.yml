@@ -1,0 +1,29 @@
+# 「ほしい Skill」の投稿フォーム。Discussions の Ideas カテゴリで使われる (ファイル名はカテゴリの slug)。
+# Skill ボードの「ほしい Skill を投稿」から開く。集計は eng/board-collect.mjs の REQUEST_CATEGORY。
+title: "ほしい Skill: "
+body:
+  - type: textarea
+    id: want
+    attributes:
+      label: やりたいこと
+      placeholder: "例: Pull Request の説明文を、差分から日本語で下書きしてほしい"
+    validations:
+      required: true
+  - type: textarea
+    id: now
+    attributes:
+      label: いまのやり方と、困っていること
+    validations:
+      required: false
+  - type: dropdown
+    id: tool
+    attributes:
+      label: 使っているツール
+      multiple: true
+      options:
+        - GitHub Copilot CLI
+        - VS Code (GitHub Copilot)
+        - Claude Code
+        - そのほか
+    validations:
+      required: false
