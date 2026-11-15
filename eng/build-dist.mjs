@@ -5,9 +5,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  ROOT, CATALOG, COPILOT_NS, PLUGIN_SCHEMA_URL, SPEC_FIELDS, loadCatalog, writeJson,
+  ROOT, CATALOG, COPILOT_NS, PLUGIN_SCHEMA_URL, SPEC_FIELDS, boardEnabled, boardSkillUrl, loadCatalog, writeJson,
 } from "./lib.mjs";
-import { marketplaces, readPlugins, writeGenerated } from "./generate.mjs";
+import { generatedFiles, marketplaces, readPlugins, writeGenerated } from "./generate.mjs";
 import { validateCatalog } from "./validate.mjs";
 
 function write(file, text) {
@@ -15,8 +15,15 @@ function write(file, text) {
   fs.writeFileSync(file, text, "utf8");
 }
 
-/** 配布用 plugin.json。Agent Plugins 1.0.0 のフィールドだけを残し、同梱宣言は取り除く。 */
-function servedManifest(manifest) {
+/**
+ * 配布用 plugin.json。Agent Plugins 1.0.0 のフィールドだけを残し、同梱宣言は取り除く。
+ * board なら、homepage が未指定のプラグインにボードのページを入れる (Skill 1 つならその Skill のページ、複数なら一覧)。
+ */
+function servedManifest(plugin, board) {
+  const manifest = { ...plugin.manifest };
+  if (board && manifest.homepage === undefined && plugin.skills.length > 0) {
+    manifest.homepage = plugin.skills.length === 1 ? boardSkillUrl(plugin.skills[0]) : CATALOG.boardUrl;
+  }
   const served = { $schema: PLUGIN_SCHEMA_URL };
   for (const key of SPEC_FIELDS) {
     if (key === "$schema" || manifest[key] === undefined) continue;
@@ -28,6 +35,25 @@ function servedManifest(manifest) {
     }
   }
   return served;
+}
+
+/**
+ * 配布する SKILL.md の frontmatter に、ボードのページを metadata.feedback として足す。
+ * AI への指示である本文には触れない。frontmatter に metadata が既にある Skill は書き換えない。
+ */
+export function withBoardLink(text, skill) {
+  const match = /^(\uFEFF?---\r?\n)([\s\S]*?)(\r?\n---(?:\r?\n|$))/.exec(text);
+  if (!match || /^metadata:/m.test(match[2])) return text;
+  const eol = match[1].endsWith("\r\n") ? "\r\n" : "\n";
+  const added = `${eol}metadata:${eol}  feedback: ${boardSkillUrl(skill)}`;
+  return match[1] + match[2] + added + match[3] + text.slice(match[0].length);
+}
+
+function addBoardLinks(skillsDir) {
+  for (const name of fs.existsSync(skillsDir) ? fs.readdirSync(skillsDir) : []) {
+    const file = path.join(skillsDir, name, "SKILL.md");
+    if (fs.existsSync(file)) fs.writeFileSync(file, withBoardLink(fs.readFileSync(file, "utf8"), name), "utf8");
+  }
 }
 
 function distBanner() {
@@ -51,7 +77,8 @@ function distAgentGuide() {
 `;
 }
 
-export function buildDist({ root = ROOT, outDir = path.join(root, "dist") } = {}) {
+/** board: 配布物にボードへのリンクを入れるか。既定は環境変数 BOARD_ENABLED (publish workflow がリポジトリ変数を渡す)。 */
+export function buildDist({ root = ROOT, outDir = path.join(root, "dist"), board = boardEnabled() } = {}) {
   writeGenerated(root);
   const { errors } = validateCatalog(root);
   if (errors.length > 0) {
@@ -81,8 +108,10 @@ export function buildDist({ root = ROOT, outDir = path.join(root, "dist") } = {}
       fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.copyFileSync(path.join(root, "agents", `${agent}.agent.md`), target);
     }
-    writeJson(path.join(dest, "plugin.json"), servedManifest(plugin.manifest));
+    writeJson(path.join(dest, "plugin.json"), servedManifest(plugin, board));
+    if (board) addBoardLinks(path.join(dest, "skills"));
   }
+  if (board) addBoardLinks(path.join(outDir, "skills"));
 
   // 3. マーケットプレイス定義 (配布ブランチ内の相対パスを指す)
   for (const [rel, content] of Object.entries(marketplaces(plugins, "dist"))) {
@@ -90,18 +119,18 @@ export function buildDist({ root = ROOT, outDir = path.join(root, "dist") } = {}
   }
 
   // 4. README と、配布ブランチ用の案内
-  const readme = path.join(root, "README.md");
-  write(path.join(outDir, "README.md"), distBanner() + (fs.existsSync(readme) ? fs.readFileSync(readme, "utf8") : ""));
+  const readme = generatedFiles(root, { board })["README.md"] ?? (fs.existsSync(path.join(root, "README.md")) ? fs.readFileSync(path.join(root, "README.md"), "utf8") : "");
+  write(path.join(outDir, "README.md"), distBanner() + readme);
   write(path.join(outDir, "AGENTS.md"), distAgentGuide());
   write(path.join(outDir, "CLAUDE.md"), "@AGENTS.md\n");
 
-  return { outDir, plugins };
+  return { outDir, plugins, board };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    const { outDir, plugins } = buildDist();
-    console.log(`生成ファイルを更新し、配布物を生成しました: ${path.relative(ROOT, outDir)}/ (plugins ${plugins.length})`);
+    const { outDir, plugins, board } = buildDist();
+    console.log(`生成ファイルを更新し、配布物を生成しました: ${path.relative(ROOT, outDir)}/ (plugins ${plugins.length}、ボードへのリンク ${board ? "あり" : "なし"})`);
   } catch (e) {
     console.error(e.message);
     process.exit(1);

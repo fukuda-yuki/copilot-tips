@@ -1,9 +1,13 @@
-// 利用者に見える文言 (ボードのページ、感想スレッドの本文) に、説明のための文が混ざっていないかを確かめる。
+// 利用者に見える文言 (ボードのページ、感想スレッドの本文、配布ブランチの README のカタログ) に、説明のための文が混ざっていないかを確かめる。
 // 方針は AGENTS.md の「利用者に見える文言」。ここで止めるのは典型的な言い回しだけ。
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderBoard } from "./board.mjs";
 import { discussionBody } from "./board-collect.mjs";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { README_END, README_START, generatedFiles } from "./generate.mjs";
 
 /** 書かない言い回しと、その理由。 */
 const BANNED = [
@@ -23,6 +27,16 @@ function visibleText(html) {
     .replace(/&[a-z]+;|&#\d+;/g, " ");
 }
 
+/** 配布ブランチの README のカタログ節 (ボードへのリンクつき) から、表の見出しと固定の文字だけを取り出す。 */
+function distCatalog() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "copy-"));
+  fs.mkdirSync(path.join(root, "skills/a"), { recursive: true });
+  fs.writeFileSync(path.join(root, "skills/a/SKILL.md"), "---\nname: a\ndescription: x\n---\n");
+  fs.writeFileSync(path.join(root, "README.md"), `${README_START}\n${README_END}\n`);
+  const readme = generatedFiles(root, { board: true })["README.md"];
+  return readme.slice(readme.indexOf(README_START) + README_START.length, readme.indexOf(README_END)).replace(/\([^)]*\)/g, " ");
+}
+
 function sampleTexts() {
   // Skill の説明や感想は書き手のものなので、ここでは中立な文字で置き換える
   const skills = [
@@ -36,6 +50,7 @@ function sampleTexts() {
   const files = renderBoard({ skills, stats });
   const texts = Object.entries(files).filter(([f]) => f.endsWith(".html")).map(([f, html]) => [f, visibleText(html)]);
   texts.push(["感想スレッドの本文", visibleText(discussionBody("a"))]);
+  texts.push(["配布ブランチの README のカタログ", distCatalog()]);
   return texts;
 }
 

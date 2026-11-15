@@ -9,7 +9,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ROOT, CATALOG, loadCatalog, readComposition, readFrontmatter, readJson } from "./lib.mjs";
+import { ROOT, CATALOG, boardSkillUrl, loadCatalog, readComposition, readFrontmatter, readJson } from "./lib.mjs";
 
 export const README_START = "<!-- catalog:start (自動生成。手で編集しない) -->";
 export const README_END = "<!-- catalog:end -->";
@@ -50,7 +50,8 @@ export function marketplaces(plugins, mode) {
   };
 }
 
-function catalogSection(catalog, plugins) {
+/** board: true なら Skill の表に、ボードの Skill ごとのページへのリンクの列を足す (配布ブランチの README 用)。 */
+function catalogSection(catalog, plugins, { board = false } = {}) {
   const lines = [README_START, "", `### プラグイン (${plugins.length})`, ""];
   if (plugins.length > 0) {
     lines.push("| プラグイン | 説明 | 同梱物 |", "| --- | --- | --- |");
@@ -59,24 +60,28 @@ function catalogSection(catalog, plugins) {
       lines.push(`| [\`${p.name}\`](plugins/${p.name}) | ${cell(p.description)} | ${parts.join("<br>")} |`);
     }
   } else {
-    lines.push("まだありません。");
+    lines.push("なし");
   }
-  const table = (title, items, link) => {
+  const table = (title, items, link, extra) => {
     if (items.length === 0) return;
-    lines.push("", `### ${title} (${items.length})`, "", `| ${title} | 説明 |`, "| --- | --- |");
+    const head = extra ? [title, "説明", extra.head] : [title, "説明"];
+    lines.push("", `### ${title} (${items.length})`, "", `| ${head.join(" | ")} |`, `|${" --- |".repeat(head.length)}`);
     for (const item of items) {
-      lines.push(`| [\`${item.name}\`](${link(item)}) | ${cell(readFrontmatter(item.file)?.description)} |`);
+      const cells = [`[\`${item.name}\`](${link(item)})`, cell(readFrontmatter(item.file)?.description)];
+      if (extra) cells.push(extra.cell(item));
+      lines.push(`| ${cells.join(" | ")} |`);
     }
   };
-  table("Skill", catalog.skills, (s) => `skills/${s.name}`);
+  const boardColumn = board ? { head: "評判", cell: (s) => `[いいね・感想](${boardSkillUrl(s.name)})` } : undefined;
+  table("Skill", catalog.skills, (s) => `skills/${s.name}`, boardColumn);
   table("Agent", catalog.agents, (a) => `agents/${a.name}.agent.md`);
   table("Instruction", catalog.instructions, (i) => `instructions/${i.name}.instructions.md`);
   lines.push("", README_END);
   return lines.join("\n");
 }
 
-/** 生成ファイルの「あるべき内容」を { 相対パス: 内容 } で返す。 */
-export function generatedFiles(root) {
+/** 生成ファイルの「あるべき内容」を { 相対パス: 内容 } で返す。board は配布ブランチ用の README を作るときだけ true にする。 */
+export function generatedFiles(root, { board = false } = {}) {
   const catalog = loadCatalog(root);
   const plugins = readPlugins(catalog);
   const files = marketplaces(plugins, "source");
@@ -87,7 +92,7 @@ export function generatedFiles(root) {
     const start = readme.indexOf(README_START);
     const end = readme.indexOf(README_END);
     if (start !== -1 && end > start) {
-      files["README.md"] = readme.slice(0, start) + catalogSection(catalog, plugins) + readme.slice(end + README_END.length);
+      files["README.md"] = readme.slice(0, start) + catalogSection(catalog, plugins, { board }) + readme.slice(end + README_END.length);
     }
   }
   return files;

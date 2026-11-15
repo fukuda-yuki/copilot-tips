@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { COMPOSITION_NS, PLUGIN_SCHEMA_URL, readJson } from "./lib.mjs";
+import { CATALOG, COMPOSITION_NS, PLUGIN_SCHEMA_URL, readFrontmatter, readJson } from "./lib.mjs";
 import { validateCatalog } from "./validate.mjs";
 import { README_END, README_START, writeGenerated } from "./generate.mjs";
 import { buildDist } from "./build-dist.mjs";
@@ -13,10 +13,12 @@ function write(file, text) {
   fs.writeFileSync(file, text);
 }
 
+const SKILL_MD = "---\nname: hello\ndescription: あいさつする\n---\n\n本文\n";
+
 /** skill 1 つ・agent 1 つ・それを束ねる plugin 1 つの最小カタログを作る。 */
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "catalog-"));
-  write(path.join(root, "skills/hello/SKILL.md"), "---\nname: hello\ndescription: あいさつする\n---\n\n本文\n");
+  write(path.join(root, "skills/hello/SKILL.md"), SKILL_MD);
   write(path.join(root, "skills/hello/references/note.md"), "note\n");
   write(path.join(root, "agents/guide.agent.md"), "---\ndescription: 案内する\n---\n\n本文\n");
   write(path.join(root, "instructions/style.instructions.md"), "---\napplyTo: \"**/*.md\"\ndescription: 文体\n---\n");
@@ -62,7 +64,7 @@ test("正本のプラグインに生成物が置かれているとエラーに�
 test("配布物にプラグインが実体化され、同梱宣言は取り除かれる", () => {
   const root = fixture();
   const outDir = path.join(root, "dist");
-  buildDist({ root, outDir });
+  buildDist({ root, outDir, board: false });
 
   const plugin = path.join(outDir, "plugins/hello-pack");
   assert.ok(fs.existsSync(path.join(plugin, "skills/hello/SKILL.md")));
@@ -95,6 +97,48 @@ test("配布物にプラグインが実体化され、同梱宣言は取り除�
   assert.match(fs.readFileSync(path.join(outDir, "README.md"), "utf8"), /配布専用[\s\S]*plugins\/hello-pack/);
   // 正本は書き換えない
   assert.ok(!fs.existsSync(path.join(root, "plugins/hello-pack/skills")));
+});
+
+test("ボードが動いていない間は、配布物にボードへのリンクを入れない", () => {
+  const root = fixture();
+  const outDir = path.join(root, "dist");
+  buildDist({ root, outDir, board: false });
+  for (const file of ["README.md", "skills/hello/SKILL.md", "plugins/hello-pack/skills/hello/SKILL.md", "plugins/hello-pack/plugin.json"]) {
+    assert.ok(!fs.readFileSync(path.join(outDir, file), "utf8").includes(CATALOG.boardUrl), file);
+  }
+});
+
+test("ボードが動いていれば、配布物の README・Skill・plugin.json からボードのページに飛べる", () => {
+  const root = fixture();
+  const outDir = path.join(root, "dist");
+  buildDist({ root, outDir, board: true });
+  const page = `${CATALOG.boardUrl}skills/hello/`;
+
+  assert.match(fs.readFileSync(path.join(outDir, "README.md"), "utf8"), new RegExp(`\\| \\[\`hello\`\\]\\(skills/hello\\) \\| あいさつする \\| \\[いいね・感想\\]\\(${page}\\) \\|`));
+  // 正本の README には入れない (どのブランチでも同じ内容のまま検証できるように)
+  assert.ok(!fs.readFileSync(path.join(root, "README.md"), "utf8").includes(page));
+  assert.equal(readJson(path.join(outDir, "plugins/hello-pack/plugin.json")).homepage, page);
+
+  for (const file of ["skills/hello/SKILL.md", "plugins/hello-pack/skills/hello/SKILL.md"]) {
+    const text = fs.readFileSync(path.join(outDir, file), "utf8");
+    assert.ok(text.includes(`metadata:\n  feedback: ${page}\n---\n`), file);
+    // AI への指示 (frontmatter の name / description と本文) は正本と同じ
+    assert.equal(text.replace(`\nmetadata:\n  feedback: ${page}`, ""), SKILL_MD, file);
+    assert.deepEqual(readFrontmatter(path.join(outDir, file)), { name: "hello", description: "あいさつする", metadata: "" });
+  }
+});
+
+test("plugin.json に homepage を書いたプラグインと、metadata を書いた Skill は上書きしない", () => {
+  const root = fixture();
+  const manifest = path.join(root, "plugins/hello-pack/plugin.json");
+  fs.writeFileSync(manifest, JSON.stringify({ ...readJson(manifest), homepage: "https://example.com/" }));
+  const skill = "---\nname: hello\ndescription: あいさつする\nmetadata:\n  author: x\n---\n\n本文\n";
+  write(path.join(root, "skills/hello/SKILL.md"), skill);
+  writeGenerated(root);
+  const outDir = path.join(root, "dist");
+  buildDist({ root, outDir, board: true });
+  assert.equal(readJson(path.join(outDir, "plugins/hello-pack/plugin.json")).homepage, "https://example.com/");
+  assert.equal(fs.readFileSync(path.join(outDir, "skills/hello/SKILL.md"), "utf8"), skill);
 });
 
 test("検証エラーがあると配布物を生成しない", () => {

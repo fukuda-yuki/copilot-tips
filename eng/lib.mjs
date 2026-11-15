@@ -24,6 +24,12 @@ export const CATALOG = {
   boardUrl: "https://fukuda-yuki.github.io/copilot-tips/",
 };
 
+/** Skill ボードの Skill ごとのページの URL。 */
+export const boardSkillUrl = (skill) => `${CATALOG.boardUrl}skills/${skill}/`;
+
+/** 配布物にボードへのリンクを入れるか。ボードが動いていない間はリンク切れになるので入れない。 */
+export const boardEnabled = (env = process.env) => env.BOARD_ENABLED === "true";
+
 export const PLUGIN_SCHEMA_URL = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json";
 /** このリポジトリ専用の「同梱内容の宣言」を置く名前空間。配布時に取り除く。 */
 export const COMPOSITION_NS = "io.github.fukuda-yuki.copilot-tips";

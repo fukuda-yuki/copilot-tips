@@ -16,7 +16,7 @@
         "ref": "marketplace"
       },
       "description": "Copilot に読ませている指示ファイルや Skill を点検するプラグイン。設定の健康診断 (copilot-doctor) と、古い書き方・矛盾を見つけるプロンプト監査 (prompt-audit) を同梱。",
-      "version": "0.1.0"
+      "version": "0.1.1"
     },
     {
       "name": "imozuru",
@@ -27,7 +27,7 @@
         "ref": "marketplace"
       },
       "description": "知らない分野を、用語・人・媒体から芋づる式にたどって原文を集め、抜き書きと詳細レポートにまとめるプラグイン。",
-      "version": "0.1.0"
+      "version": "0.1.1"
     },
     {
       "name": "skill-creator",
@@ -38,7 +38,7 @@
         "ref": "marketplace"
       },
       "description": "Agent Skill を新しく作る・既存の Skill を見直す・description を改善するための手引きをまとめたプラグイン。",
-      "version": "0.1.0"
+      "version": "0.1.1"
     }
   ]
 }

@@ -12,7 +12,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { CATALOG } from "./lib.mjs";
+import { CATALOG, boardSkillUrl } from "./lib.mjs";
 import { boardSkills, dayOf, parseArgs, recordHistory } from "./board.mjs";
 
 export const DEFAULT_CATEGORY = "General";
@@ -26,9 +26,9 @@ export function discussionTitle(skill) {
 }
 
 export function discussionBody(skill) {
-  const { repo, sourceBranch, boardUrl } = CATALOG;
+  const { repo, sourceBranch } = CATALOG;
   return `${discussionMarker(skill)}
-[\`${skill}\`](https://github.com/${repo}/tree/${sourceBranch}/skills/${skill}) · [ボード](${boardUrl}skills/${skill}/)
+[\`${skill}\`](https://github.com/${repo}/tree/${sourceBranch}/skills/${skill}) · [ボード](${boardSkillUrl(skill)})
 
 役に立ったらこの投稿に 👍。感想・要望・不具合はコメントへ。
 `;

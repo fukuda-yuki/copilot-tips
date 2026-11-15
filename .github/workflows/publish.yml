@@ -32,6 +32,8 @@ jobs:
       - name: Run tests
         run: npm test
       - name: Build distribution
+        env:
+          BOARD_ENABLED: ${{ vars.BOARD_ENABLED }} # ボードが動いているときだけ、配布物にボードへのリンクを入れる
         run: npm run build
       - name: Publish dist/ to the distribution branch
         run: |
