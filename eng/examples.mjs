@@ -55,13 +55,22 @@ export function installSkill(root, home, name) {
 }
 
 /**
- * 出力から実例の本文を作る。目印の行を除き、前後の空行を落とし、EXAMPLE_MAX_LINES 行に収める (超えたら最後の行を「…」にする)。
- * その Skill の目印が無い・本文が空なら null。
+ * 出力から実例の本文を作る。その Skill の目印が無い・本文が空なら null。
+ * -s の出力には、本文の前に途中経過 (「〜を確認します」) と、下調べの結果 (<final_answer> の塊) が混ざるので落とす。
+ *  - <final_answer> の塊と目印の行を除く
+ *  - 見出し (# で始まる行) があれば、最初の見出しから始める。本文はたいてい見出しで始まり、その前は途中経過のため
+ *  - 作業場所 (cwd) の絶対パスは、リポジトリの中の相対パスにする
+ *  - 空行の連続は 1 つにし、EXAMPLE_MAX_LINES 行に収める (超えたら最後の行を「…」にする)
  */
-export function excerpt(name, output, max = EXAMPLE_MAX_LINES) {
+export function excerpt(name, output, { cwd = null, max = EXAMPLE_MAX_LINES } = {}) {
   if (!loadedSkills(output).includes(name)) return null;
-  const lines = String(output).replace(/\r\n/g, "\n").replace(/\u001b\[[0-9;]*[A-Za-z]/g, "")
-    .split("\n").filter((l) => !/SKILL-LOADED:[a-z0-9-]+/.test(l)).map((l) => l.trimEnd());
+  let text = String(output).replace(/\r\n/g, "\n").replace(/\u001b\[[0-9;]*[A-Za-z]/g, "")
+    .replace(/<final_answer>[\s\S]*?<\/final_answer>/g, "");
+  if (cwd) text = text.split(`${cwd.replace(/\/+$/, "")}/`).join("");
+  let lines = text.split("\n").filter((l) => !/SKILL-LOADED:[a-z0-9-]+/.test(l)).map((l) => l.trimEnd());
+  const heading = lines.findIndex((l) => /^#{1,6} /.test(l));
+  if (heading > 0) lines = lines.slice(heading);
+  lines = lines.filter((l, i) => l !== "" || (i > 0 && lines[i - 1] !== ""));
   while (lines.length > 0 && lines[0] === "") lines.shift();
   while (lines.length > 0 && lines.at(-1) === "") lines.pop();
   if (lines.length === 0) return null;
@@ -72,11 +81,11 @@ export function excerpt(name, output, max = EXAMPLE_MAX_LINES) {
 export const exampleFile = (ask, body) => `---\nask: ${ask.replace(/\s+/g, " ").trim()}\n---\n\n${body}\n`;
 
 /** 対象の Skill を 1 つずつ動かし、{ name: { ask, verified, body } | { ask, error } } を返す。run は (target) => 出力。 */
-export async function runExamples({ targets, run, log = () => {} }) {
+export async function runExamples({ targets, run, cwd = null, log = () => {} }) {
   const results = {};
   for (const target of targets) {
     try {
-      const body = excerpt(target.name, await run(target));
+      const body = excerpt(target.name, await run(target), { cwd });
       results[target.name] = body ? { ask: target.ask, verified: target.verified, body } : { ask: target.ask, error: "Skill が動いた目印が出ませんでした" };
     } catch (e) {
       results[target.name] = { ask: target.ask, error: e.message };
@@ -131,6 +140,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
           installSkill(ROOT, home, t.name);
           return runCopilot(t.ask, { home, cwd: ROOT, timeout: TIMEOUT_MS, extra: RUN_ARGS });
         },
+        cwd: ROOT,
         log: (m) => console.log(m),
       });
       writeJson(args.out, results);

@@ -48,6 +48,23 @@ test("出力から目印の行を除いて抜粋にし、目印が無ければ�
   assert.equal(excerpt("doc", "結果だけ"), null);
   assert.equal(excerpt("doc", `${marker("other")}\n結果`), null, "別の Skill の出力は使わない");
   assert.equal(excerpt("doc", `${marker("doc")}\n`), null);
+  // Copilot CLI 1.0.112 で実際に出た形: 途中経過、下調べの結果の塊、作業場所の絶対パスの後に本文が来る
+  const real = [
+    marker("doc"),
+    "範囲を確認します。",
+    "",
+    "<final_answer>",
+    "/work/repo/skills/doc/SKILL.md:1-48",
+    "</final_answer>",
+    "",
+    "",
+    "## 監査レポート",
+    "",
+    "",
+    "- /work/repo/AGENTS.md 12 行目",
+  ].join("\n");
+  assert.equal(excerpt("doc", real, { cwd: "/work/repo" }), "## 監査レポート\n\n- AGENTS.md 12 行目");
+  assert.equal(excerpt("doc", `${marker("doc")}\n前置き\n本文`), "前置き\n本文", "見出しが無ければ全部を使う");
   const long = excerpt("doc", `${marker("doc")}\n${Array.from({ length: 50 }, (_, i) => `行 ${i}`).join("\n")}`).split("\n");
   assert.equal(long.length, EXAMPLE_MAX_LINES);
   assert.equal(long.at(-1), "…");
