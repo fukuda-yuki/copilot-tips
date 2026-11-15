@@ -7,8 +7,7 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 
 /** git は hook の実行中に GIT_DIR などを環境変数で渡してくる。別のリポジトリを操作するときは外す。 */
 export const GIT_ENV = { ...process.env };
-for (const name of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_COMMON_DIR"]) delete GIT_ENV[name];
-
+for (const name of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_COMMON_DIR", "GIT_PREFIX"]) delete GIT_ENV[name];
 
 /** カタログ全体の設定。リポジトリ名や公開先が変わったらここだけ直す。 */
 export const CATALOG = {
@@ -64,9 +63,34 @@ export function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
-export function writeJson(file, value) {
+/** ファイルがあれば JSON として読む。パスが空・ファイルが無ければ null。 */
+export const readJsonIfExists = (file) => (file && fs.existsSync(file) ? readJson(file) : null);
+
+/** 親フォルダが無ければ作って書く。 */
+export function writeText(file, text) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(value, null, 2) + "\n", "utf8");
+  fs.writeFileSync(file, text, "utf8");
+}
+
+export function writeJson(file, value) {
+  writeText(file, JSON.stringify(value, null, 2) + "\n");
+}
+
+/** コマンドの引数 `--name value ...` を { name: value } にする。 */
+export function parseArgs(argv) {
+  const args = {};
+  for (let i = 0; i < argv.length; i++) {
+    const m = /^--([a-z-]+)$/.exec(argv[i]);
+    if (!m) throw new Error(`不明な引数です: ${argv[i]}`);
+    args[m[1]] = argv[++i];
+  }
+  return args;
+}
+
+/** Markdown 先頭の YAML frontmatter を { open, body, close, rest } に分ける。つなげると元の文になる。無ければ null。 */
+export function splitFrontmatter(text) {
+  const m = /^(\uFEFF?---\r?\n)([\s\S]*?)(\r?\n---(?:\r?\n|$))/.exec(text);
+  return m && { open: m[1], body: m[2], close: m[3], rest: text.slice(m[0].length) };
 }
 
 /**
@@ -74,11 +98,10 @@ export function writeJson(file, value) {
  * frontmatter が無ければ null。入れ子や複数行の値は扱わない (検証側で 1 行に揃えさせる)。
  */
 export function readFrontmatter(file) {
-  const text = fs.readFileSync(file, "utf8").replace(/^﻿/, "");
-  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text);
-  if (!match) return null;
+  const fm = splitFrontmatter(fs.readFileSync(file, "utf8"));
+  if (!fm) return null;
   const data = {};
-  for (const line of match[1].split(/\r?\n/)) {
+  for (const line of fm.body.split(/\r?\n/)) {
     const kv = /^([A-Za-z0-9_-]+):\s*(.*)$/.exec(line);
     if (!kv) continue;
     let value = kv[2].trim();

@@ -15,7 +15,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ROOT, CATALOG, boardSkillUrl, loadCatalog, readFrontmatter } from "./lib.mjs";
+import { ROOT, CATALOG, GIT_ENV, boardSkillUrl, loadCatalog, parseArgs, readFrontmatter, readJsonIfExists, writeText } from "./lib.mjs";
 import { readPlugins } from "./generate.mjs";
 
 const TIME_ZONE = "Asia/Tokyo";
@@ -28,9 +28,7 @@ export const FRESH_DAYS = 14;
 // データ
 // ---------------------------------------------------------------------------
 
-/** git hook の中から呼ばれても root のリポジトリを読むよう、hook が渡す GIT_DIR などを外す。 */
-export const gitEnv = (env = process.env) => Object.fromEntries(Object.entries(env).filter(([k]) => !/^GIT_(DIR|INDEX_FILE|WORK_TREE|PREFIX|COMMON_DIR|OBJECT_DIRECTORY)$/.test(k)));
-const git = (root, args) => execFileSync("git", ["-C", root, ...args], { encoding: "utf8", env: gitEnv(), stdio: ["ignore", "pipe", "ignore"] }).trim();
+const git = (root, args) => execFileSync("git", ["-C", root, ...args], { encoding: "utf8", env: GIT_ENV, stdio: ["ignore", "pipe", "ignore"] }).trim();
 
 /**
  * Skill の公開日 (最初の commit) と最終更新日 (最後の commit) を ISO 形式で返す。
@@ -192,12 +190,13 @@ export function recordHistory(history, stats, day, keepDays = KEEP_DAYS) {
   return { version: 1, days: Object.fromEntries(Object.entries(days).sort(([a], [b]) => a.localeCompare(b))) };
 }
 
-/** Skill の行に必要な数字をまとめる。集計がまだの Skill は 0 として扱う。👍 の多い順に並べる。 */
-export function boardRows(skills, stats) {
+/** Skill の行に必要な数字と頼み方をまとめる。集計がまだの Skill は 0 として扱う。👍 の多い順に並べる。 */
+export function boardRows(skills, stats, triggers = null) {
   return skills.map((skill) => {
     const s = stats?.skills?.[skill.name];
     return {
       ...skill,
+      ask: orderPhrases(askPhrases(skill.description), skill.description, triggers?.skills?.[skill.name]),
       up: s?.up ?? 0,
       commentCount: s?.commentCount ?? 0,
       comments: s?.comments ?? [],
@@ -222,7 +221,7 @@ export function boardData(rows, { generatedAt, requests = null }) {
     skills: rows.map((r) => ({
       name: r.name,
       description: r.description,
-      ask: r.ask ?? askPhrases(r.description),
+      ask: r.ask,
       requires: r.requires || null,
       page: boardSkillUrl(r.name),
       plugins: r.plugins.map((p) => ({ name: p, version: r.versions?.[p] ?? null })),
@@ -698,7 +697,7 @@ ${footer(generatedAt)}`,
 /** ボードのファイル一式を { 相対パス: 内容 } で返す。 */
 export function renderBoard({ skills, stats, triggers = null, now = new Date(), showAuthors = true }) {
   const generatedAt = stats?.generatedAt ? new Date(stats.generatedAt) : now;
-  const rows = boardRows(skills, stats).map((r) => ({ ...r, ask: orderPhrases(askPhrases(r.description), r.description, triggers?.skills?.[r.name]) }));
+  const rows = boardRows(skills, stats, triggers);
   const groups = navGroups(rows);
   const requests = stats?.requests ?? null;
   const files = {
@@ -716,8 +715,6 @@ export function showAuthorsFrom(value) {
   return !/^(false|0|no|off)$/i.test(String(value ?? "").trim());
 }
 
-const readJsonIfExists = (file) => (file && fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : null);
-
 export function buildBoard({ root = ROOT, statsFile, triggersFile, outDir = path.join(root, "dist", "board"), showAuthors = true, now } = {}) {
   const files = renderBoard({
     skills: boardSkills(root),
@@ -727,22 +724,8 @@ export function buildBoard({ root = ROOT, statsFile, triggersFile, outDir = path
     showAuthors,
   });
   fs.rmSync(outDir, { recursive: true, force: true });
-  for (const [rel, content] of Object.entries(files)) {
-    const file = path.join(outDir, rel);
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, content, "utf8");
-  }
+  for (const [rel, content] of Object.entries(files)) writeText(path.join(outDir, rel), content);
   return { outDir, files: Object.keys(files) };
-}
-
-export function parseArgs(argv) {
-  const args = {};
-  for (let i = 0; i < argv.length; i++) {
-    const m = /^--([a-z-]+)$/.exec(argv[i]);
-    if (!m) throw new Error(`不明な引数です: ${argv[i]}`);
-    args[m[1]] = argv[++i];
-  }
-  return args;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
