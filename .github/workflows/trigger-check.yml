@@ -19,32 +19,41 @@ concurrency:
 
 permissions: {}
 
+env:
+  # 版を上げるときは、Skill を 1 つ指定して動作を確かめる
+  COPILOT_CLI_VERSION: 1.0.112
+
 jobs:
+  # Copilot CLI (AI エージェント) を動かす job。リポジトリに書き込めるトークンを持たせない
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
-      contents: write # 結果を board-data ブランチに残す
+      contents: read
+    outputs:
+      result: ${{ steps.run.outputs.result }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
+          persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
-      - name: Check out the history branch
-        id: data
+      - name: Read the previous results
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           branch="$(node --input-type=module -e 'import { CATALOG } from "./eng/lib.mjs"; console.log(CATALOG.boardDataBranch)')"
-          dir="${RUNNER_TEMP}/board-data"
-          git fetch origin "${branch}"
-          git worktree add --detach "${dir}" FETCH_HEAD
-          echo "branch=${branch}" >> "${GITHUB_OUTPUT}"
-          echo "dir=${dir}" >> "${GITHUB_OUTPUT}"
+          # 前回の結果が無ければ、空から始める
+          curl -fsSL -H "authorization: bearer ${GH_TOKEN}" -H "accept: application/vnd.github.raw" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/contents/triggers.json?ref=${branch}" -o "${RUNNER_TEMP}/triggers.json" \
+            || rm -f "${RUNNER_TEMP}/triggers.json"
       - name: Install Copilot CLI
-        run: npm install -g @github/copilot
+        run: npm install -g "@github/copilot@${COPILOT_CLI_VERSION}"
       - name: Check phrases
+        id: run
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_TOKEN }}
           SKILL: ${{ inputs.skill }}
@@ -54,14 +63,34 @@ jobs:
             echo "secret COPILOT_TOKEN がありません。" >&2
             exit 1
           fi
-          copilot --version
-          set -- --out "${{ steps.data.outputs.dir }}/triggers.json" --summary "${GITHUB_STEP_SUMMARY}"
+          set -- --out "${RUNNER_TEMP}/triggers.json" --summary "${GITHUB_STEP_SUMMARY}"
           if [ -n "${SKILL}" ]; then set -- "$@" --skill "${SKILL}"; fi
           node eng/trigger-check.mjs "$@"
+          echo "result=$(base64 -w0 "${RUNNER_TEMP}/triggers.json")" >> "${GITHUB_OUTPUT}"
+
+  # 結果を board-data ブランチに残す job。Copilot CLI は動かさない
+  save:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
       - name: Save results
-        working-directory: ${{ steps.data.outputs.dir }}
+        env:
+          RESULT: ${{ needs.check.outputs.result }}
         run: |
           set -euo pipefail
+          branch="$(node --input-type=module -e 'import { CATALOG } from "./eng/lib.mjs"; console.log(CATALOG.boardDataBranch)')"
+          dir="${RUNNER_TEMP}/board-data"
+          git fetch origin "${branch}"
+          git worktree add --detach "${dir}" FETCH_HEAD
+          cd "${dir}"
+          printf '%s' "${RESULT}" | base64 -d > triggers.json
+          # 壊れた結果を残さない
+          node -e 'JSON.parse(require("node:fs").readFileSync("triggers.json", "utf8"))'
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add triggers.json
@@ -70,4 +99,4 @@ jobs:
             exit 0
           fi
           git commit -m "chore: record trigger check results"
-          git push origin "HEAD:refs/heads/${{ steps.data.outputs.branch }}"
+          git push origin "HEAD:refs/heads/${branch}"

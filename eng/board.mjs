@@ -70,22 +70,20 @@ export function orderPhrases(phrases, description, check) {
 const SCRIPT_KINDS = { ".py": "Python", ".js": "Node.js", ".mjs": "Node.js", ".cjs": "Node.js", ".ts": "TypeScript", ".sh": "シェル", ".ps1": "PowerShell" };
 const DOC_EXTENSIONS = new Set([".md", ".txt"]);
 
-/** SKILL.md のほかに同梱しているものを「Python スクリプト 10 本、資料 1 件、ほか 17 件」の形で返す。無ければ空文字。 */
+/** SKILL.md のほかに同梱しているスクリプトと資料を「Python スクリプト 10 本、資料 1 件」の形で返す。無ければ空文字。画像などは数えない。 */
 export function bundledSummary(dir) {
   const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
   const files = fs.existsSync(dir) ? walk(dir).filter((f) => !/^(SKILL\.md|LICENSE(\..*)?)$/i.test(path.relative(dir, f))) : [];
   const scripts = new Map();
-  let docs = 0, others = 0;
+  let docs = 0;
   for (const f of files) {
     const ext = path.extname(f).toLowerCase();
     if (SCRIPT_KINDS[ext]) scripts.set(SCRIPT_KINDS[ext], (scripts.get(SCRIPT_KINDS[ext]) ?? 0) + 1);
     else if (DOC_EXTENSIONS.has(ext)) docs++;
-    else others++;
   }
   return [
     ...[...scripts].map(([kind, n]) => `${kind} スクリプト ${n} 本`),
     ...(docs ? [`資料 ${docs} 件`] : []),
-    ...(others ? [`ほか ${others} 件`] : []),
   ].join("、");
 }
 
@@ -553,16 +551,16 @@ export function renderIndex(rows, { generatedAt, requests = null }) {
       </tr>`;
   }).join("\n");
 
-  const wanted = requests
+  // 投稿先は上の帯にある。ここには要望があるときだけ一覧を出す
+  const wanted = requests?.items.length > 0
     ? `<section id="requests">
 <h2>ほしい Skill</h2>
-<div class="actions"><a class="btn" href="${esc(requests.url)}">投稿する</a></div>
-${requests.items.length > 0 ? `<table>
+<table>
   <thead><tr><th>要望</th><th class="n">票</th></tr></thead>
   <tbody>
 ${requests.items.slice(0, MAX_REQUESTS).map((q) => `    <tr><td class="req"><a href="${esc(q.url)}">${esc(q.title)}</a></td><td class="n up">${q.up}</td></tr>`).join("\n")}
   </tbody>
-</table>` : ""}
+</table>
 </section>
 `
     : "";

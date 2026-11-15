@@ -118,7 +118,7 @@ Skill の一覧と、Skill ごとのいいね・感想・入れ方を GitHub Pag
 
 1. `eng/board-collect.mjs` が Discussions から、Skill ごとの感想スレッドの 👍 (最初の投稿へのリアクション) とコメントを集計する。スレッドの無い Skill には自動でスレッドを作るので、Skill を `main` に入れるだけでボードに載る
 2. その日の値を `board-data` ブランチの `history.json` に残す。リアクションには日時が無く、後から推移を出すにはこの記録が要るため (いまのページでは使っていない)。`board-data` は Actions だけが更新する
-3. `eng/board.mjs` が `skills/` と `plugins/` を読んで、一覧と Skill ごとのページを `dist/board/` に生成し、Pages に公開する。Skill のページには `description` の全文ではなく、最初の 1 文と頼み方 (「」の中) を出す。「同梱」は Skill のフォルダの中身から数える。同じ内容を、エージェントが読む `skills.json` にも出す。Skill の公開日と最終更新日は `skills/<name>/` の git の履歴 (`main` に入った日) から取り、公開・更新から `FRESH_DAYS` (14) 日のあいだ New / Updated の印を付ける。浅い clone では日付を出さない
+3. `eng/board.mjs` が `skills/` と `plugins/` を読んで、一覧と Skill ごとのページを `dist/board/` に生成し、Pages に公開する。Skill のページには `description` の全文ではなく、最初の 1 文と頼み方 (「」の中) を出す。「同梱」は Skill のフォルダにあるスクリプトと資料 (`.md` `.txt`) を数える。同じ内容を、エージェントが読む `skills.json` にも出す。Skill の公開日と最終更新日は `skills/<name>/` の git の履歴 (`main` に入った日) から取り、公開・更新から `FRESH_DAYS` (14) 日のあいだ New / Updated の印を付ける。浅い clone では日付を出さない
 
 いいねと感想は GitHub の感想スレッドで受け付け、ページからはそこへリンクします。ページ内で送れるようにするには訪問者の GitHub トークンを発行する秘密鍵つきのサーバーか第三者の GitHub App が要るので、採っていません。外部のスクリプトを読み込まないことはテストが確かめます。
 
@@ -130,7 +130,7 @@ Skill と感想スレッドの対応は、スレッド本文の先頭にある `
 
 ### ほしい Skill
 
-Discussions の `Ideas` カテゴリ (`eng/board-collect.mjs` の `REQUEST_CATEGORY`) を、ほしい Skill の受付に使います。ボードは全ページの上に投稿フォームへのリンクを出し、一覧のページに、開いている要望を票 (upvote) の多い順で並べます。カテゴリが無ければ何も出しません。
+Discussions の `Ideas` カテゴリ (`eng/board-collect.mjs` の `REQUEST_CATEGORY`) を、ほしい Skill の受付に使います。ボードは全ページの上に投稿フォームへのリンクを出し、要望があれば一覧のページに、開いている要望を票 (upvote) の多い順で並べます。カテゴリが無ければ何も出しません。
 
 - 投稿フォームは `.github/DISCUSSION_TEMPLATE/ideas.yml`。ファイル名はカテゴリの slug と同じにします
 - 作った・見送った要望は GitHub で閉じると一覧から外れます
@@ -144,8 +144,12 @@ Discussions の `Ideas` カテゴリ (`eng/board-collect.mjs` の `REQUEST_CATEG
 - 本物の Skill は動かしません。`name` と `description` だけを写し、本文を「目印を出して終える」に差し替えた写しを全 Skill ぶん置いて実行します。ツールの許可は与えません
 - 結果は `board-data` ブランチの `triggers.json` に残り、次の「Skill board」の実行から、呼ばれると確かめた頼み方が先に並びます。ページに出る違いは並び順だけです
 - 呼ばれなかった頼み方は、ページには出さず、実行結果の Summary に挙げます。`description` を見直すか、「」から外します
-- Copilot CLI を実行できなかった頼み方は前回の結果のままにします。1 つも実行できなければ失敗し、結果を書き換えません。ボードはそのまま動きます
+- Copilot CLI を実行できなかった頼み方は前回の結果のままにします。ボードはそのまま動きます
 - `description` を変えた Skill の古い結果は使いません
+- 1 つも実行できない・1 つも呼ばれないときは失敗し、結果を書き換えません。写しが読み込まれていない場合を「全部呼ばれなかった」と記録しないためです
+- 「〜」「〇〇」の入った頼み方 (語を埋めて使うもの) は確かめません
+- Copilot CLI は版を固定して入れます (`trigger-check.yml` の `COPILOT_CLI_VERSION`)。CLI を動かす job にはリポジトリへの書き込み権限を渡さず、結果の保存は別の job が行います
+- 「Skill board」と同時には動きません。待っている間に毎日の「Skill board」が始まると、待っていた側が取り消されることがあります。そのときはもう一度実行します
 - 準備: 「Copilot Requests」の権限だけを付けた fine-grained personal access token を作り、リポジトリの secret `COPILOT_TOKEN` に入れます。頼み方 1 つにつき、トークンの持ち主の Copilot の利用枠を 1 回ぶん使います
 
 ### リポジトリ変数 (Settings → Secrets and variables → Actions → Variables)

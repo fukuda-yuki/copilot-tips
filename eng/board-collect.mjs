@@ -67,9 +67,10 @@ const DISCUSSIONS_QUERY = `query($owner: String!, $name: String!, $cursor: Strin
   }
 }`;
 
-const REQUESTS_QUERY = `query($owner: String!, $name: String!, $categoryId: ID!) {
+const REQUESTS_QUERY = `query($owner: String!, $name: String!, $categoryId: ID!, $cursor: String) {
   repository(owner: $owner, name: $name) {
-    discussions(first: 100, categoryId: $categoryId, orderBy: { field: CREATED_AT, direction: DESC }) {
+    discussions(first: 100, after: $cursor, categoryId: $categoryId) {
+      pageInfo { hasNextPage endCursor }
       nodes { title url body closed upvoteCount createdAt }
     }
   }
@@ -119,7 +120,14 @@ export function summarize(discussion) {
 export async function collectRequests({ repo, graphql, owner, name, category = REQUEST_CATEGORY }) {
   const target = repo.discussionCategories.nodes.find((c) => c.name === category);
   if (!target) return null;
-  const nodes = (await graphql(REQUESTS_QUERY, { owner, name, categoryId: target.id })).repository.discussions.nodes;
+  // 閉じた要望が増えても開いている要望を落とさないよう、全部たどってから絞る
+  const nodes = [];
+  let cursor = null;
+  do {
+    const page = (await graphql(REQUESTS_QUERY, { owner, name, categoryId: target.id, cursor })).repository.discussions;
+    nodes.push(...page.nodes);
+    cursor = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
+  } while (cursor);
   const items = nodes
     .filter((d) => !d.closed && !MARKER_PATTERN.test(d.body ?? ""))
     .map((d) => ({ title: d.title.replace(REQUEST_TITLE_PREFIX, "").trim() || d.title, url: d.url, up: d.upvoteCount, createdAt: d.createdAt }))

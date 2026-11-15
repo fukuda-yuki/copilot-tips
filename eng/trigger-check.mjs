@@ -5,7 +5,9 @@
 //  - 全 Skill の写しを一緒に置く。似た Skill に取られないかも分かる
 //  - 結果は triggers.json に書く。board.mjs は、呼ばれると確かめた頼み方を先に並べるのに使う。
 //    呼ばれなかった頼み方はページには出さず、実行結果の要約 (--summary) でメンテナーに知らせる
-//  - Copilot CLI を実行できなかった頼み方は「不明」として前回の結果を残す。1 つも実行できなければ失敗し、ファイルを書き換えない
+//  - Copilot CLI を実行できなかった頼み方は「不明」として前回の結果を残す。1 つも実行できない・1 つも呼ばれないときは失敗し、ファイルを書き換えない
+//    (写しが読み込まれていない、認証に失敗したのに正常終了した、を「全部呼ばれなかった」と記録しないため)
+//  - 「〜」「〇〇」の入った頼み方は、語を埋めて使う形なので確かめない
 //
 // 使い方 (GitHub Actions から実行する。Copilot の利用枠を、頼み方 1 つにつき 1 回ぶん使う):
 //   COPILOT_GITHUB_TOKEN=... node eng/trigger-check.mjs --out <triggers.json> [--summary <file.md>] [--skill <name>]
@@ -24,11 +26,14 @@ const TIMEOUT_MS = 180_000;
 export const marker = (skill) => `SKILL-LOADED:${skill}`;
 const MARKER_PATTERN = /SKILL-LOADED:([a-z0-9-]+)/g;
 
+/** 語を埋めて使う頼み方 (「〜に使える Skill ある?」「〇〇の新着見て」)。そのまま送っても意味が通らないので確かめない。 */
+const PLACEHOLDER = /[〜～]|〇〇|○○/;
+
 /** 確かめる対象。頼み方の無い Skill は含めない。 */
 export function checkTargets(root = ROOT, only = null) {
   return loadCatalog(root).skills
     .map((s) => ({ name: s.name, description: readFrontmatter(s.file)?.description ?? "" }))
-    .map((s) => ({ ...s, phrases: askPhrases(s.description) }))
+    .map((s) => ({ ...s, phrases: askPhrases(s.description).filter((p) => !PLACEHOLDER.test(p)) }))
     .filter((s) => s.phrases.length > 0 && (!only || s.name === only));
 }
 
@@ -43,11 +48,14 @@ description: ${JSON.stringify(description)}
 `;
 }
 
-/** 全 Skill の写しを、Copilot CLI の個人用の置き場 (<home>/skills) に書く。 */
+/** Copilot CLI の設定の置き場。HOME を作業用フォルダに向けたときの既定の場所 (~/.copilot) と同じにして、どちらで探されても写しが読まれるようにする。 */
+export const copilotHome = (home) => path.join(home, ".copilot");
+
+/** 全 Skill の写しを、Copilot CLI の個人用の置き場 (<home>/.copilot/skills) に書く。 */
 export function writeStubs(root, home) {
   for (const skill of loadCatalog(root).skills) {
     const description = readFrontmatter(skill.file)?.description ?? "";
-    const file = path.join(home, "skills", skill.name, "SKILL.md");
+    const file = path.join(copilotHome(home), "skills", skill.name, "SKILL.md");
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, stubSkill(skill.name, description), "utf8");
   }
@@ -65,7 +73,7 @@ export function loadedSkills(output) {
 export function runCopilot(prompt, { home, cwd, bin = "copilot", timeout = TIMEOUT_MS } = {}) {
   const args = ["-p", prompt, "-s", "--no-ask-user", "--no-custom-instructions", "--disable-builtin-mcps"];
   return new Promise((resolve, reject) => {
-    execFile(bin, args, { cwd, timeout, maxBuffer: 8 * 1024 * 1024, env: { ...process.env, COPILOT_HOME: home } }, (error, stdout, stderr) => {
+    execFile(bin, args, { cwd, timeout, maxBuffer: 8 * 1024 * 1024, env: { ...process.env, HOME: home, USERPROFILE: home, COPILOT_HOME: copilotHome(home) } }, (error, stdout, stderr) => {
       // 目印が出ていれば、終了コードが 0 でなくても結果として使う (許可の無いツールを呼ぼうとして止まる場合がある)
       if (error && loadedSkills(stdout).length === 0) reject(new Error(String(stderr || error.message).trim().slice(0, 500)));
       else resolve(stdout);
@@ -101,10 +109,15 @@ export async function check({ targets, run, previous = null, now = new Date(), l
   return { result: { generatedAt: now.toISOString(), skills }, ran, failed };
 }
 
-/** 対象外の Skill の前回の結果を残して、今回の結果を重ねる (--skill で 1 つだけ確かめたとき)。 */
-export function mergeResults(previous, result) {
-  return { ...result, skills: { ...(previous?.skills ?? {}), ...result.skills } };
+/** 今回確かめなかった Skill の前回の結果を残して、今回の結果を重ねる (--skill で 1 つだけ確かめたとき)。カタログに無い Skill の記録は捨てる。 */
+export function mergeResults(previous, result, names) {
+  const kept = Object.fromEntries(Object.entries(previous?.skills ?? {}).filter(([name]) => names.includes(name)));
+  return { ...result, skills: { ...kept, ...result.skills } };
 }
+
+/** 今回の実行で、呼ばれた頼み方の数。 */
+export const firedCount = (result, since) => Object.values(result.skills)
+  .flatMap((s) => Object.values(s.phrases)).filter((r) => r.fired && r.checkedAt === since).length;
 
 /** メンテナー向けの要約 (Markdown)。呼ばれなかった頼み方を挙げる。 */
 export function summary(result, { ran, failed }) {
@@ -137,10 +150,12 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     writeStubs(ROOT, home);
     const previous = fs.existsSync(args.out) ? JSON.parse(fs.readFileSync(args.out, "utf8")) : null;
     const { result, ran, failed } = await check({ targets, previous, run: (prompt) => runCopilot(prompt, { home, cwd }), log: (m) => console.log(m) });
-    if (args.summary) fs.appendFileSync(args.summary, summary(mergeResults(previous, result), { ran, failed }), "utf8");
+    const merged = mergeResults(previous, result, loadCatalog(ROOT).skills.map((s) => s.name));
     if (ran === 0) throw new Error("Copilot CLI を 1 回も実行できませんでした。結果は書き換えていません。トークン (COPILOT_GITHUB_TOKEN) と CLI の導入を確かめてください。");
+    if (firedCount(result, result.generatedAt) === 0) throw new Error("どの頼み方でも Skill が呼ばれませんでした。写しの Skill が読み込まれていないか、認証に失敗している可能性があります。結果は書き換えていません。");
+    if (args.summary) fs.appendFileSync(args.summary, summary(merged, { ran, failed }), "utf8");
     fs.mkdirSync(path.dirname(path.resolve(args.out)), { recursive: true });
-    fs.writeFileSync(args.out, JSON.stringify(mergeResults(previous, result), null, 2) + "\n", "utf8");
+    fs.writeFileSync(args.out, JSON.stringify(merged, null, 2) + "\n", "utf8");
     console.log(`確かめました: ${ran} 件 (実行できなかったもの ${failed} 件)`);
   } catch (e) {
     console.error(e.message);

@@ -285,11 +285,11 @@ test("呼ばれると確かめた頼み方を先に並べ、description が変�
 
 test("必須環境は SKILL.md の compatibility、同梱は Skill のフォルダの中身から出す", () => {
   const root = askFixture();
-  assert.equal(bundledSummary(path.join(root, "skills/ask")), "Python スクリプト 2 本、資料 1 件、ほか 1 件");
+  assert.equal(bundledSummary(path.join(root, "skills/ask")), "Python スクリプト 2 本、資料 1 件");
   assert.equal(bundledSummary(path.join(root, "skills/hello")), "");
   const files = renderBoard({ skills: boardSkills(root), stats });
   assert.match(files["skills/ask/index.html"], /必須環境<\/dt><dd>Python 3\.10 以上<\/dd>/);
-  assert.match(files["skills/ask/index.html"], /同梱<\/dt><dd>Python スクリプト 2 本、資料 1 件、ほか 1 件<\/dd>/);
+  assert.match(files["skills/ask/index.html"], /同梱<\/dt><dd>Python スクリプト 2 本、資料 1 件<\/dd>/);
   assert.doesNotMatch(files["skills/hello/index.html"], /必須環境|同梱</);
   assert.equal(JSON.parse(files[DATA_FILE]).skills.find((s) => s.name === "ask").requires, "Python 3.10 以上");
 });
@@ -309,8 +309,8 @@ test("ほしい Skill は、投稿先を全ページの上に、要望を票の�
   assert.doesNotMatch(files[DATA_FILE], /PR の説明/, "他人が書いた題をエージェントに読ませない");
 
   const empty = renderBoard({ skills: boardSkills(fixture()), stats: { ...stats, requests: { ...requests, items: [] } } })["index.html"];
-  assert.match(empty, /<h2>ほしい Skill<\/h2>/);
-  assert.doesNotMatch(empty, /<th>要望<\/th>/);
+  assert.doesNotMatch(empty, /<h2>ほしい Skill<\/h2>/, "要望が無ければ一覧の節を出さない");
+  assert.match(empty, />ほしい Skill を投稿</);
   assert.doesNotMatch(renderBoard({ skills: boardSkills(fixture()), stats })["index.html"], /ほしい Skill/, "受け付けていなければ出さない");
 });
 
@@ -357,7 +357,9 @@ function fakeGitHub({ discussions = [], enabled = true, requests = null } = {}) 
     }
     if (query.includes("upvoteCount")) {
       assert.equal(variables.categoryId, "C2");
-      return { repository: { discussions: { nodes: requests } } };
+      // 2 件ずつページを分けて、ページ送りも確かめる
+      const start = variables.cursor ? Number(variables.cursor) : 0;
+      return { repository: { discussions: { pageInfo: { hasNextPage: start + 2 < requests.length, endCursor: String(start + 2) }, nodes: requests.slice(start, start + 2) } } };
     }
     // 1 件ずつページを分けて、ページ送りも確かめる
     const start = variables.cursor ? Number(variables.cursor) : 0;

@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { readFrontmatter } from "./lib.mjs";
 import { descriptionHash } from "./board.mjs";
-import { check, checkTargets, loadedSkills, marker, mergeResults, runCopilot, stubSkill, summary, writeStubs } from "./trigger-check.mjs";
+import { check, checkTargets, copilotHome, firedCount, loadedSkills, marker, mergeResults, runCopilot, stubSkill, summary, writeStubs } from "./trigger-check.mjs";
 
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "trigger-"));
@@ -13,12 +13,12 @@ function fixture() {
     fs.mkdirSync(path.join(root, "skills", name), { recursive: true });
     fs.writeFileSync(path.join(root, "skills", name, "SKILL.md"), `---\nname: ${name}\ndescription: ${description}\n---\n${body}`);
   };
-  write("doc", '点検する。「診断して」「"引用符" の入った: 頼み方」の依頼で使う。', "本物の手順。rm -rf を実行する。\n");
+  write("doc", '点検する。「診断して」「"引用符" の入った: 頼み方」「〜を点検して」「〇〇の設定を見て」の依頼で使う。', "本物の手順。rm -rf を実行する。\n");
   write("plain", "頼み方の無い Skill", "本文\n");
   return root;
 }
 
-test("確かめる対象は頼み方のある Skill だけ", () => {
+test("確かめる対象は頼み方のある Skill だけで、語を埋めて使う頼み方は外す", () => {
   const targets = checkTargets(fixture());
   assert.deepEqual(targets.map((t) => [t.name, t.phrases]), [["doc", ["診断して", '"引用符" の入った: 頼み方']]]);
   assert.deepEqual(checkTargets(fixture(), "plain"), []);
@@ -30,7 +30,7 @@ test("写しは name と description が本物と同じで、本文は目印を�
   const home = path.join(root, "home");
   writeStubs(root, home);
   for (const name of ["doc", "plain"]) {
-    const stub = path.join(home, "skills", name, "SKILL.md");
+    const stub = path.join(copilotHome(home), "skills", name, "SKILL.md");
     const text = fs.readFileSync(stub, "utf8");
     const real = readFrontmatter(path.join(root, "skills", name, "SKILL.md"));
     assert.equal(/^name: (.+)$/m.exec(text)[1], real.name);
@@ -72,10 +72,16 @@ test("頼み方ごとに、呼ばれた・別の Skill に取られた・実行�
   assert.deepEqual((await check({ targets: [target], previous: stale, run: failing })).result.skills.doc.phrases, {}, "description が変わる前の結果は引き継がない");
 });
 
-test("1 つだけ確かめたときは、ほかの Skill の結果を残す", () => {
-  const merged = mergeResults({ generatedAt: "a", skills: { x: 1, y: 2 } }, { generatedAt: "b", skills: { y: 3 } });
+test("1 つだけ確かめたときは、ほかの Skill の結果を残し、カタログに無い Skill の記録は捨てる", () => {
+  const merged = mergeResults({ generatedAt: "a", skills: { x: 1, y: 2, gone: 9 } }, { generatedAt: "b", skills: { y: 3 } }, ["x", "y"]);
   assert.deepEqual(merged, { generatedAt: "b", skills: { x: 1, y: 3 } });
-  assert.deepEqual(mergeResults(null, { generatedAt: "b", skills: { y: 3 } }), { generatedAt: "b", skills: { y: 3 } });
+  assert.deepEqual(mergeResults(null, { generatedAt: "b", skills: { y: 3 } }, ["y"]), { generatedAt: "b", skills: { y: 3 } });
+});
+
+test("今回の実行で呼ばれた数は、引き継いだ前回の結果を数えない", () => {
+  const result = { skills: { a: { phrases: { p: { fired: true, checkedAt: "now" }, q: { fired: true, checkedAt: "before" }, r: { fired: false, checkedAt: "now" } } } } };
+  assert.equal(firedCount(result, "now"), 1);
+  assert.equal(firedCount({ skills: { a: { phrases: { q: { fired: true, checkedAt: "before" } } } } }, "now"), 0);
 });
 
 test("要約には、呼ばれなかった頼み方と代わりに呼ばれた Skill を挙げる", () => {
@@ -90,9 +96,9 @@ test("要約には、呼ばれなかった頼み方と代わりに呼ばれた S
 test("Copilot CLI にはツールの許可を与えず、設定の置き場を写しに向ける", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-"));
   const bin = path.join(dir, "copilot");
-  fs.writeFileSync(bin, '#!/bin/sh\nprintf "%s\\n" "$COPILOT_HOME" "$@"\n', { mode: 0o755 });
+  fs.writeFileSync(bin, '#!/bin/sh\nprintf "%s\\n" "$HOME" "$COPILOT_HOME" "$@"\n', { mode: 0o755 });
   const out = await runCopilot("頼み方", { home: "/h", cwd: dir, bin });
-  assert.deepEqual(out.trim().split("\n"), ["/h", "-p", "頼み方", "-s", "--no-ask-user", "--no-custom-instructions", "--disable-builtin-mcps"]);
+  assert.deepEqual(out.trim().split("\n"), ["/h", "/h/.copilot", "-p", "頼み方", "-s", "--no-ask-user", "--no-custom-instructions", "--disable-builtin-mcps"]);
   assert.doesNotMatch(out, /allow/);
 
   fs.writeFileSync(bin, "#!/bin/sh\necho no auth >&2\nexit 1\n", { mode: 0o755 });
