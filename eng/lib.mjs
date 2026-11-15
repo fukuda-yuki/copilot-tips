@@ -128,6 +128,8 @@ export function readComposition(manifest) {
 
 /** Skill の実例を置くフォルダ。ボードに載せるだけで、配布物には入れない。 */
 export const EXAMPLES_DIR = "examples";
+/** 実例の本文の行数の上限。ページに全文を載せるので、抜粋に収める。 */
+export const EXAMPLE_MAX_LINES = 40;
 
 /**
  * Skill の実例 (examples/<skill-name>.md) を { ask, output } で返す。無い・読めない場合は null。

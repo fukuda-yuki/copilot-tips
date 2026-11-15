@@ -4,13 +4,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  ROOT, COMPOSITION_NS, COPILOT_NS, EXAMPLES_DIR, NAME_PATTERN, PLUGIN_SCHEMA_URL, SPEC_FIELDS,
+  ROOT, COMPOSITION_NS, COPILOT_NS, EXAMPLE_MAX_LINES, EXAMPLES_DIR, NAME_PATTERN, PLUGIN_SCHEMA_URL, SPEC_FIELDS,
   listFiles, loadCatalog, readComposition, readExample, readFrontmatter, readJson,
 } from "./lib.mjs";
 import { staleGenerated } from "./generate.mjs";
-
-/** 実例の本文の行数の上限。ページに全文を載せるので、抜粋に収める。 */
-export const EXAMPLE_MAX_LINES = 40;
 
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 

@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { CATALOG, COMPOSITION_NS, PLUGIN_SCHEMA_URL, readFrontmatter, readJson } from "./lib.mjs";
-import { EXAMPLE_MAX_LINES, validateCatalog } from "./validate.mjs";
+import { CATALOG, COMPOSITION_NS, EXAMPLE_MAX_LINES, PLUGIN_SCHEMA_URL, readFrontmatter, readJson } from "./lib.mjs";
+import { validateCatalog } from "./validate.mjs";
 import { README_END, README_START, writeGenerated } from "./generate.mjs";
 import { buildDist } from "./build-dist.mjs";
 

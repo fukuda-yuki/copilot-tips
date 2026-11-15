@@ -28,6 +28,7 @@ npm run setup   # git hook を有効にする
 | Pull Request (`validate`) | 検証・テスト・ビルドを実行する。通らないとマージできない |
 | 毎日 09:00 と `main` の更新時 (`board`) | Skill ボードを集計して GitHub Pages に公開する ([下記](#skill-ボード)) |
 | 手動 (`trigger-check`) | Skill の頼み方で本当に呼ばれるかを Copilot CLI で確かめる ([下記](#頼み方の確認)) |
+| 手動 (`examples`) | 実例の無い Skill を Copilot CLI で動かし、実例のブランチを作る ([下記](#実例を載せる)) |
 | Claude Code の操作前 | 生成ファイルの手編集と、hook の回避 (`--no-verify`) を止める |
 
 手動で実行する場合のコマンドです。
@@ -72,6 +73,8 @@ Skill や Agent の実体はリポジトリ直下の `skills/` `agents/` に 1 �
 
 入れる前に「頼むと何が返ってくるか」が分かるよう、ボードの Skill のページに実例を 1 つ載せられます。`examples/<skill-name>.md` に、実際に頼んだ言葉と、返ってきたものの抜粋 (40 行まで) を書きます。作った文面ではなく、実際の出力を貼ります。社内の名前やパスは消します。プラグインの `version` は上げなくて構いません。
 
+手で書く代わりに、Actions の「Examples」を手動で実行すると、実例の無い Skill を Copilot CLI で実際に動かして作ります (`eng/examples.mjs`)。
+
 ```markdown
 ---
 ask: プロンプトを監査して
@@ -79,6 +82,15 @@ ask: プロンプトを監査して
 
 (返ってきたものの抜粋。整形されず、書いたまま載る)
 ```
+
+「Examples」の動き方です。
+
+- 実例のある Skill は動かしません。作り直すときは、ファイルを消してから実行します
+- 頼み方は、[頼み方の確認](#頼み方の確認) で呼ばれると確かめたものを先に使います。Skill と頼み方を指定して実行することもできます (語を埋める Skill はこちらで)
+- 作業場所はこのリポジトリです。読めるのはその中と Web だけで、シェル・ファイルの書き込みは禁じます
+- Skill の写しに「最初の行に目印を出す」を足して動かし、目印の出ない出力は実例にしません
+- 結果は `examples/<実行番号>` ブランチに置かれ、実行結果の Summary に「Pull Request を作る」のリンクが出ます。中身を読んでからマージします
+- secret `COPILOT_TOKEN` は頼み方の確認と同じものを使います。Skill 1 つにつき、少なくとも 1 回ぶんの利用枠を使います
 
 ## 他者の著作物を元にした Skill
 
@@ -131,7 +143,7 @@ Skill の一覧と、Skill ごとのいいね・感想・入れ方を GitHub Pag
 
 1. `eng/board-collect.mjs` が Discussions から、Skill ごとの感想スレッドの 👍 (最初の投稿へのリアクション) とコメントを集計する。スレッドの無い Skill には自動でスレッドを作るので、Skill を `main` に入れるだけでボードに載る
 2. その日の値を `board-data` ブランチの `history.json` に残す。リアクションには日時が無く、後から推移を出すにはこの記録が要るため (いまのページでは使っていない)。`board-data` は Actions だけが更新する
-3. `eng/board.mjs` が `skills/` と `plugins/` を読んで、一覧と Skill ごとのページを `dist/board/` に生成し、Pages に公開する。Skill のページには `description` の全文ではなく、最初の 1 文と頼み方 (「」の中) を出し、`examples/<name>.md` があれば実例を出す。「同梱」は Skill のフォルダにあるスクリプトと資料 (`.md` `.txt`) を数える。同じ内容を、エージェントが読む `skills.json` にも出す。Skill の公開日と最終更新日は `skills/<name>/` の git の履歴 (`main` に入った日) から取り、公開・更新から `FRESH_DAYS` (14) 日のあいだ New / Updated の印を付ける。浅い clone では日付を出さない
+3. `eng/board.mjs` が `skills/` と `plugins/` を読んで、一覧と Skill ごとのページを `dist/board/` に生成し、Pages に公開する。Skill のページには `description` の全文ではなく、最初の 1 文と頼み方 (「」の中) を出し、`examples/<name>.md` があれば [実例](#実例を載せる) を出す。「同梱」は Skill のフォルダにあるスクリプトと資料 (`.md` `.txt`) を数える。同じ内容を、エージェントが読む `skills.json` にも出す。Skill の公開日と最終更新日は `skills/<name>/` の git の履歴 (`main` に入った日) から取り、公開・更新から `FRESH_DAYS` (14) 日のあいだ New / Updated の印を付ける。浅い clone では日付を出さない
 
 いいねと感想は GitHub の感想スレッドで受け付け、ページからはそこへリンクします。ページ内で送れるようにするには訪問者の GitHub トークンを発行する秘密鍵つきのサーバーか第三者の GitHub App が要るので、採っていません。外部のスクリプトを読み込まないことはテストが確かめます。
 

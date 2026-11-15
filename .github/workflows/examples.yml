@@ -1,0 +1,107 @@
+name: Examples
+
+# 実例 (examples/<skill-name>.md) の無い Skill を Copilot CLI で実際に動かし、返ってきたものを実例にする (eng/examples.mjs)。
+# 結果は examples/<run_id> ブランチに置き、Summary の「Pull Request を作る」から main に入れる。中身を読んでからマージする。
+# 手動でだけ実行する。Skill 1 つにつき、secret COPILOT_TOKEN の持ち主の Copilot の利用枠を少なくとも 1 回ぶん使う。
+on:
+  workflow_dispatch:
+    inputs:
+      skill:
+        description: 実例を作る Skill の名前 (空なら実例の無い Skill 全部)
+        required: false
+        type: string
+      prompt:
+        description: 頼み方 (空なら、呼ばれると確かめた頼み方。Skill の名前と一緒に指定する)
+        required: false
+        type: string
+
+permissions: {}
+
+env:
+  # 版を上げるときは、Skill を 1 つ指定して動作を確かめる (trigger-check.yml と同じ版にする)
+  COPILOT_CLI_VERSION: 1.0.112
+
+jobs:
+  # Copilot CLI (AI エージェント) を動かす job。リポジトリに書き込めるトークンを持たせない
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    outputs:
+      result: ${{ steps.run.outputs.result }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Read the trigger check results
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch="$(node --input-type=module -e 'import { CATALOG } from "./eng/lib.mjs"; console.log(CATALOG.boardDataBranch)')"
+          # 頼み方の確認の結果が無ければ、description の最初の頼み方を使う
+          curl -fsSL -H "authorization: bearer ${GH_TOKEN}" -H "accept: application/vnd.github.raw" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/contents/triggers.json?ref=${branch}" -o "${RUNNER_TEMP}/triggers.json" \
+            || rm -f "${RUNNER_TEMP}/triggers.json"
+      - name: Install Copilot CLI
+        run: npm install -g "@github/copilot@${COPILOT_CLI_VERSION}"
+      - name: Run skills
+        id: run
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_TOKEN }}
+          SKILL: ${{ inputs.skill }}
+          PROMPT: ${{ inputs.prompt }}
+        run: |
+          set -euo pipefail
+          if [ -z "${COPILOT_GITHUB_TOKEN}" ]; then
+            echo "secret COPILOT_TOKEN がありません。" >&2
+            exit 1
+          fi
+          set -- --out "${RUNNER_TEMP}/examples.json" --triggers "${RUNNER_TEMP}/triggers.json" --summary "${GITHUB_STEP_SUMMARY}"
+          if [ -n "${SKILL}" ]; then set -- "$@" --skill "${SKILL}"; fi
+          if [ -n "${PROMPT}" ]; then set -- "$@" --prompt "${PROMPT}"; fi
+          node eng/examples.mjs run "$@"
+          echo "result=$(base64 -w0 "${RUNNER_TEMP}/examples.json")" >> "${GITHUB_OUTPUT}"
+
+  # 実例をブランチに置く job。Copilot CLI は動かさない
+  save:
+    needs: run
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Save examples
+        env:
+          RESULT: ${{ needs.run.outputs.result }}
+        run: |
+          set -euo pipefail
+          printf '%s' "${RESULT}" | base64 -d > "${RUNNER_TEMP}/examples.json"
+          node eng/examples.mjs save --from "${RUNNER_TEMP}/examples.json" --written "${RUNNER_TEMP}/written.txt"
+          if [ ! -s "${RUNNER_TEMP}/written.txt" ]; then
+            echo "書く実例はありません。"
+            exit 0
+          fi
+          # 規約に合わない実例はブランチに置かない
+          node eng/validate.mjs
+          branch="examples/${GITHUB_RUN_ID}"
+          git switch -c "${branch}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add examples
+          git commit -m "docs: Skill の実例を足す ($(paste -sd ' ' "${RUNNER_TEMP}/written.txt"))"
+          git push origin "HEAD:refs/heads/${branch}"
+          {
+            echo ""
+            echo "[Pull Request を作る](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/main...${branch}?expand=1)。中身を読み、社内の名前やおかしな出力が無いかを確かめてからマージする。"
+          } >> "${GITHUB_STEP_SUMMARY}"
