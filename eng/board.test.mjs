@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { CATALOG, COMPOSITION_NS, PLUGIN_SCHEMA_URL, ROOT } from "./lib.mjs";
 import {
-  DATA_FILE, FRESH_DAYS, boardSkills, buildBoard, freshness, gitEnv, installGuides, navGroups, recordHistory, renderBoard, shortDescription, showAuthorsFrom, skillDates,
+  DATA_FILE, FRESH_DAYS, boardSkills, bundleCommands, buildBoard, freshness, gitEnv, installGuides, navGroups, recordHistory, renderBoard, shortDescription, showAuthorsFrom, skillDates,
 } from "./board.mjs";
 import { collect, discussionMarker } from "./board-collect.mjs";
 
@@ -178,6 +178,39 @@ test("作成者と感想を書いた人の名前は変数で伏せられる", ()
   for (const html of Object.values(files)) {
     assert.doesNotMatch(html, /alice|bob/);
   }
+});
+
+test("まとめて入れるコマンドは、同じプラグインを 1 回だけ入れ、1 つだけ選んだときは Skill のページと一致する", () => {
+  const config = { repo: CATALOG.repo, catalog: CATALOG.name, distBranch: CATALOG.distBranch };
+  const a = { name: "a", plugins: ["p"] }, b = { name: "b", plugins: ["p"] }, c = { name: "c", plugins: ["q"] }, solo = { name: "solo", plugins: [] };
+  const lines = (selected) => Object.fromEntries(bundleCommands(config, selected).map((g) => [g.id, g.lines]));
+
+  assert.deepEqual(bundleCommands(config, []), []);
+  assert.deepEqual(lines([a, b, c, solo]), {
+    copilot: ["copilot plugin marketplace add fukuda-yuki/copilot-tips", "copilot plugin install p@copilot-tips", "copilot plugin install q@copilot-tips"],
+    vscode: ['"chat.plugins.marketplaces": ["fukuda-yuki/copilot-tips"]'],
+    claude: ["/plugin marketplace add fukuda-yuki/copilot-tips", "/plugin install p@copilot-tips", "/plugin install q@copilot-tips"],
+    apm: ["apm install fukuda-yuki/copilot-tips/plugins/p#marketplace", "apm install fukuda-yuki/copilot-tips/plugins/q#marketplace", "apm install fukuda-yuki/copilot-tips/skills/solo"],
+    skills: ["npx skills add fukuda-yuki/copilot-tips --skill a --skill b --skill c --skill solo"],
+  });
+  assert.deepEqual(Object.keys(lines([solo])), ["apm", "skills"], "プラグインに入っていない Skill だけなら、プラグインの入れ方は出さない");
+
+  for (const skill of [a, solo]) {
+    const single = installGuides(skill);
+    for (const g of bundleCommands(config, [skill])) {
+      const page = single.find((x) => x.id === g.id);
+      const first = page.blocks.filter((x) => !x.skillOnly || skill.plugins.length === 0).flatMap((x) => x.lines);
+      assert.deepEqual(g.lines, first, g.id);
+    }
+  }
+});
+
+test("一覧で Skill を選べ、選ぶ欄は JavaScript が無ければ出さない", () => {
+  const files = renderBoard({ skills: boardSkills(fixture()), stats });
+  assert.match(files["index.html"], /<input type="checkbox" value="hello" data-plugins="hello-pack" aria-label="hello">/);
+  assert.match(files["index.html"], /<section class="bundle" data-config="[^"]*" hidden>/);
+  assert.match(files["style.css"], /\.pick \{ display: none;/);
+  assert.doesNotThrow(() => new Function("document", "localStorage", "navigator", files["board.js"]), "board.js が構文として正しい");
 });
 
 test("エージェントが読む一覧に、数字・送り先・入れ方を出し、感想の本文は出さない", () => {

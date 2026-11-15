@@ -95,6 +95,31 @@ export function installGuides(skill) {
   return guides;
 }
 
+/**
+ * 選んだ Skill をまとめて入れるコマンドを、ツールごとに返す。同じプラグインは 1 回だけ入れる。
+ * 一覧ページのブラウザ側でも同じ関数を使う (SCRIPT に埋め込む) ので、外の変数を参照しない。
+ * selected は [{ name, plugins }]、config は { repo, catalog, distBranch }。入れられるものが無いツールは返さない。
+ */
+export function bundleCommands(config, selected) {
+  const plugins = [...new Set(selected.flatMap((s) => s.plugins))];
+  const solo = selected.filter((s) => s.plugins.length === 0).map((s) => s.name);
+  const guides = [];
+  if (plugins.length > 0) {
+    guides.push(
+      { id: "copilot", tool: "GitHub Copilot CLI", lines: [`copilot plugin marketplace add ${config.repo}`, ...plugins.map((p) => `copilot plugin install ${p}@${config.catalog}`)] },
+      { id: "vscode", tool: "VS Code", lines: [`"chat.plugins.marketplaces": ["${config.repo}"]`], note: `拡張機能ビューで @agentPlugins を検索し、${plugins.join("、")} を入れる。` },
+      { id: "claude", tool: "Claude Code", lines: [`/plugin marketplace add ${config.repo}`, ...plugins.map((p) => `/plugin install ${p}@${config.catalog}`)] },
+    );
+  }
+  if (selected.length > 0) {
+    guides.push(
+      { id: "apm", tool: "APM", lines: [...plugins.map((p) => `apm install ${config.repo}/plugins/${p}#${config.distBranch}`), ...solo.map((n) => `apm install ${config.repo}/skills/${n}`)] },
+      { id: "skills", tool: "npx skills", lines: [`npx skills add ${config.repo} ${selected.map((s) => `--skill ${s.name}`).join(" ")}`] },
+    );
+  }
+  return guides;
+}
+
 /** 日付 (Asia/Tokyo) を YYYY-MM-DD で返す。 */
 export function dayOf(date) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
@@ -263,6 +288,11 @@ th.n { font-size: 0.875rem; }
 td.up { font-weight: 700; }
 td.act { white-space: nowrap; font-size: 0.875rem; padding-right: 0; }
 td.act a { display: block; }
+.pick { display: none; width: 44px; padding-right: 0; }
+.picking .pick { display: table-cell; }
+.pick label { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; margin: -4px 0 0 -6px; cursor: pointer; }
+.pick input { width: 20px; height: 20px; margin: 0; accent-color: var(--link); cursor: pointer; }
+.bundle[hidden] { display: none; }
 .skill { font-family: var(--mono); font-size: 1.125rem; font-weight: 700; overflow-wrap: anywhere; }
 .tag { margin-left: 8px; padding: 1px 8px; vertical-align: 2px; border: 1px solid var(--link); border-radius: 999px;
   font-size: 0.75rem; font-weight: 700; line-height: 1.5; letter-spacing: 0.04em; white-space: nowrap; color: var(--link); }
@@ -307,14 +337,18 @@ pre { font-family: var(--mono); font-size: 0.875rem; line-height: 1.8; margin: 0
   .scroll { overflow-x: auto; }
   table { table-layout: fixed; }
   th, td { padding-right: 12px; }
-  td.n, th.n { font-size: 1rem; width: 4.5em; }
+  td.n, th.n { font-size: 1rem; width: 3.25rem; }
+  th.n { font-size: 0.875rem; }
+  th.act { width: 5.5rem; }
+  .pick { width: 36px; }
   td.date, th.date { display: none; }
   .sub { max-width: 100%; }
 }
 `;
 
 // 入れ方のタブとコマンドのコピー。JS が無くても内容は読める。
-const SCRIPT = `const tabs = document.querySelector(".tabs");
+const SCRIPT = `${bundleCommands}
+const tabs = document.querySelector(".tabs[hidden]");
 if (tabs) {
   const buttons = [...tabs.querySelectorAll("button")];
   const panels = [...document.querySelectorAll(".panel")];
@@ -353,6 +387,43 @@ if (sort) {
   }));
   sort.hidden = false;
   show(order[saved] ? saved : "up");
+}
+const bundle = document.querySelector(".bundle");
+if (bundle) {
+  const config = JSON.parse(bundle.dataset.config);
+  const boxes = [...document.querySelectorAll(".pick input")];
+  const tabs = bundle.querySelector(".tabs");
+  const pre = bundle.querySelector("pre");
+  const note = bundle.querySelector(".note");
+  let tool = null;
+  try { tool = localStorage.getItem("tool"); } catch {}
+  const render = () => {
+    const selected = boxes.filter((b) => b.checked).map((b) => ({ name: b.value, plugins: b.dataset.plugins ? b.dataset.plugins.split(",") : [] }));
+    const guides = bundleCommands(config, selected);
+    bundle.hidden = guides.length === 0;
+    if (guides.length === 0) return;
+    const current = guides.find((g) => g.id === tool) || guides[0];
+    tabs.replaceChildren(...guides.map((g) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = g.tool;
+      b.setAttribute("role", "tab");
+      b.setAttribute("aria-selected", String(g === current));
+      b.addEventListener("click", () => {
+        tool = g.id;
+        try { localStorage.setItem("tool", tool); } catch {}
+        render();
+        tabs.querySelector('[aria-selected="true"]').focus();
+      });
+      return b;
+    }));
+    pre.textContent = current.lines.join("\\n");
+    note.textContent = current.note || "";
+    note.hidden = !current.note;
+  };
+  boxes.forEach((b) => b.addEventListener("change", render));
+  document.documentElement.classList.add("picking");
+  render();
 }
 document.querySelectorAll("button[data-copy]").forEach((b) => b.addEventListener("click", async () => {
   const text = document.getElementById(b.dataset.copy).textContent;
@@ -402,6 +473,7 @@ export function renderIndex(rows, { generatedAt }) {
       ? `<a href="${esc(r.url)}">いいねを送る</a><a href="${esc(r.url)}">感想を書く</a>`
       : "";
     return `      <tr data-updated="${esc(r.updated ?? "")}">
+        <td class="pick"><label><input type="checkbox" value="${esc(r.name)}" data-plugins="${esc(r.plugins.join(","))}" aria-label="${esc(r.name)}"></label></td>
         <td><a class="skill" href="skills/${esc(r.name)}/">${esc(r.name)}</a>${tag(freshness(r, generatedAt))}<span class="sub">${esc(shortDescription(r.description))}</span></td>
         <td class="n up">${r.up}</td>
         <td class="n">${r.commentCount}</td>
@@ -423,11 +495,12 @@ export function renderIndex(rows, { generatedAt }) {
   <table>
     <thead>
       <tr>
+        <th class="pick"></th>
         <th>Skill</th>
         <th class="n">いいね</th>
         <th class="n">感想</th>
         <th class="date">更新日</th>
-        <th></th>
+        <th class="act"></th>
       </tr>
     </thead>
     <tbody>
@@ -435,6 +508,12 @@ ${body}
     </tbody>
   </table>
 </div>
+<section class="bundle" data-config="${esc(JSON.stringify({ repo: CATALOG.repo, catalog: CATALOG.name, distBranch: CATALOG.distBranch }))}" hidden>
+<h2>まとめて入れる</h2>
+<div class="tabs" role="tablist"></div>
+<div class="cmd"><pre id="bundle-cmd"></pre><button class="copy" type="button" data-copy="bundle-cmd">コピー</button></div>
+<p class="note" hidden></p>
+</section>
 ${footer(generatedAt)}`,
   });
 }

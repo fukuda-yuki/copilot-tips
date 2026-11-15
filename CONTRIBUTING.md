@@ -119,7 +119,7 @@ Skill の一覧と、Skill ごとのいいね・感想・入れ方を GitHub Pag
 
 代わりに、チャットの中から送れるようにしています。`skills/skill-board` が `skills.json` を読み、利用者自身の `gh` でいいね・感想を送ります。`skills.json` には感想スレッドの id と入れ方を載せ、感想の本文は載せません (他人が書いた文をエージェントに読ませないため)。`skills.json` の項目を変えたら `skills/skill-board/SKILL.md` の表も直します (ずれるとテストが失敗します)。
 
-Skill と感想スレッドの対応は、スレッド本文の先頭にある `<!-- copilot-tips-board skill: <skill-name> -->` で取ります。スレッドのタイトルやカテゴリを変えても対応は崩れません。この行は消さないでください。本文の文面 (`eng/board-collect.mjs` の `discussionBody`) は新しく作るスレッドにだけ使われます。Actions の権限では既存のスレッドを書き換えられないので、文面を変えたら既存のスレッドはメンテナーが手で直します。目印は誰でも書けるので、Actions かメンテナー (owner / member / collaborator) が立てたスレッドだけを採用します。作成者は、Skill を同梱するプラグインの `plugin.json` の `author` を出します。インストールのコマンドは README.md の「インストール」と同じもので、ずれるとテストが失敗します。
+Skill と感想スレッドの対応は、スレッド本文の先頭にある `<!-- copilot-tips-board skill: <skill-name> -->` で取ります。スレッドのタイトルやカテゴリを変えても対応は崩れません。この行は消さないでください。本文の文面 (`eng/board-collect.mjs` の `discussionBody`) は新しく作るスレッドにだけ使われます。Actions の権限では既存のスレッドを書き換えられないので、文面を変えたら既存のスレッドはメンテナーが手で直します。目印は誰でも書けるので、Actions かメンテナー (owner / member / collaborator) が立てたスレッドだけを採用します。作成者は、Skill を同梱するプラグインの `plugin.json` の `author` を出します。インストールのコマンドは README.md の「インストール」と同じもので、ずれるとテストが失敗します。一覧で複数の Skill を選ぶと、まとめて入れるコマンドを出します (`bundleCommands`。同じ関数をページのスクリプトにも埋め込んでいます)。
 
 感想は書かれたまま Pages に転載されます。不適切な感想は GitHub 上で非表示 (Hide) か削除にしてください。非表示のコメントは集計から外れます。すぐ消したいときは、Actions の「Skill board」を手動で実行します。
 
