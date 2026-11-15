@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-15T13:11:36.083Z",
+  "generatedAt": "2026-11-15T13:17:58.516Z",
   "skills": {
     "skill-creator": {
       "hash": "80d23e04781e",
@@ -9,28 +9,28 @@
           "loaded": [
             "skill-creator"
           ],
-          "checkedAt": "2026-11-15T13:11:36.083Z"
+          "checkedAt": "2026-11-15T13:17:58.516Z"
         },
         "この作業を Skill にして": {
           "fired": true,
           "loaded": [
             "skill-creator"
           ],
-          "checkedAt": "2026-11-15T13:11:36.083Z"
+          "checkedAt": "2026-11-15T13:17:58.516Z"
         },
         "Skill が呼ばれないので description を直して": {
           "fired": true,
           "loaded": [
             "skill-creator"
           ],
-          "checkedAt": "2026-11-15T13:11:36.083Z"
+          "checkedAt": "2026-11-15T13:17:58.516Z"
         },
         "この Skill をレビューして": {
           "fired": true,
           "loaded": [
             "skill-creator"
           ],
-          "checkedAt": "2026-11-15T13:11:36.083Z"
+          "checkedAt": "2026-11-15T13:17:58.516Z"
         }
       }
     }
