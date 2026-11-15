@@ -4,9 +4,9 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { CATALOG, COMPOSITION_NS, PLUGIN_SCHEMA_URL, ROOT } from "./lib.mjs";
+import { CATALOG, COMPOSITION_NS, GIT_ENV, PLUGIN_SCHEMA_URL, ROOT } from "./lib.mjs";
 import {
-  DATA_FILE, FRESH_DAYS, askPhrases, boardSkills, bundledSummary, descriptionHash, orderPhrases, bundleCommands, buildBoard, freshness, gitEnv, installGuides, navGroups, recordHistory, renderBoard, shortDescription, showAuthorsFrom, skillDates,
+  DATA_FILE, FRESH_DAYS, askPhrases, boardSkills, bundledSummary, descriptionHash, orderPhrases, bundleCommands, buildBoard, freshness, installGuides, navGroups, recordHistory, renderBoard, shortDescription, showAuthorsFrom, skillDates,
 } from "./board.mjs";
 import { REQUEST_CATEGORY, collect, discussionMarker } from "./board-collect.mjs";
 
@@ -51,7 +51,7 @@ test("Skill の説明・同梱プラグイン・作成者を正本から読む",
 test("公開日と最終更新日は main に入った commit の日付から取る", () => {
   const root = fixture();
   const run = (args, date) => execFileSync("git", ["-C", root, ...args], {
-    env: { ...gitEnv(), GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example.com", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@example.com" },
+    env: { ...GIT_ENV, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example.com", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@example.com" },
     stdio: "ignore",
   });
   run(["init", "-q", "-b", "main"], "2026-01-01T00:00:00Z");

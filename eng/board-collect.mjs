@@ -11,11 +11,10 @@
 //   GITHUB_TOKEN=... GITHUB_REPOSITORY=owner/name \
 //   node eng/board-collect.mjs --out <stats.json> --history <history.json> [--category <name>]
 //   --history のファイルは、その日の値を追記して上書きする。
-import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { CATALOG, boardSkillUrl } from "./lib.mjs";
-import { boardSkills, dayOf, parseArgs, recordHistory } from "./board.mjs";
+import { CATALOG, boardSkillUrl, loadCatalog, parseArgs, readJsonIfExists, writeJson } from "./lib.mjs";
+import { dayOf, recordHistory } from "./board.mjs";
 
 export const DEFAULT_CATEGORY = "General";
 /** 「ほしい Skill」を受け付ける Discussions のカテゴリ名。投稿フォームは .github/DISCUSSION_TEMPLATE/<slug>.yml。 */
@@ -99,6 +98,18 @@ export function createGraphql(token, endpoint = process.env.GITHUB_GRAPHQL_URL |
   };
 }
 
+/** Discussions の一覧を、ページをまたいで最後まで読む。 */
+async function allDiscussions(graphql, query, variables) {
+  const nodes = [];
+  let cursor = null;
+  do {
+    const page = (await graphql(query, { ...variables, cursor })).repository.discussions;
+    nodes.push(...page.nodes);
+    cursor = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
+  } while (cursor);
+  return nodes;
+}
+
 /** スレッド 1 つ分の集計。非表示 (minimize) にされたコメントは数えない。 */
 export function summarize(discussion) {
   const visible = discussion.comments.nodes.filter((c) => !c.isMinimized);
@@ -121,14 +132,7 @@ export async function collectRequests({ repo, graphql, owner, name, category = R
   const target = repo.discussionCategories.nodes.find((c) => c.name === category);
   if (!target) return null;
   // 閉じた要望が増えても開いている要望を落とさないよう、全部たどってから絞る
-  const nodes = [];
-  let cursor = null;
-  do {
-    const page = (await graphql(REQUESTS_QUERY, { owner, name, categoryId: target.id, cursor })).repository.discussions;
-    nodes.push(...page.nodes);
-    cursor = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
-  } while (cursor);
-  const items = nodes
+  const items = (await allDiscussions(graphql, REQUESTS_QUERY, { owner, name, categoryId: target.id }))
     .filter((d) => !d.closed && !MARKER_PATTERN.test(d.body ?? ""))
     .map((d) => ({ title: d.title.replace(REQUEST_TITLE_PREFIX, "").trim() || d.title, url: d.url, up: d.upvoteCount, createdAt: d.createdAt }))
     .sort((a, b) => b.up - a.up || b.createdAt.localeCompare(a.createdAt));
@@ -152,17 +156,12 @@ export async function collect({ skills, graphql, owner, name, category = DEFAULT
 
   // 既存のスレッドを、目印から Skill 名に対応づける (カテゴリは問わない)
   const bySkill = new Map();
-  let cursor = null;
-  do {
-    const page = (await graphql(DISCUSSIONS_QUERY, { owner, name, cursor })).repository.discussions;
-    for (const d of page.nodes) {
-      if (!d.viewerDidAuthor && !TRUSTED_ASSOCIATIONS.has(d.authorAssociation)) continue;
-      const skill = MARKER_PATTERN.exec(d.body ?? "")?.[1];
-      // 同じ Skill のスレッドが複数あれば、番号の小さい (先に作られた) ほうを使う
-      if (skill && (!bySkill.has(skill) || bySkill.get(skill).number > d.number)) bySkill.set(skill, d);
-    }
-    cursor = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
-  } while (cursor);
+  for (const d of await allDiscussions(graphql, DISCUSSIONS_QUERY, { owner, name })) {
+    if (!d.viewerDidAuthor && !TRUSTED_ASSOCIATIONS.has(d.authorAssociation)) continue;
+    const skill = MARKER_PATTERN.exec(d.body ?? "")?.[1];
+    // 同じ Skill のスレッドが複数あれば、番号の小さい (先に作られた) ほうを使う
+    if (skill && (!bySkill.has(skill) || bySkill.get(skill).number > d.number)) bySkill.set(skill, d);
+  }
 
   const missing = skills.filter((s) => !bySkill.has(s.name));
   if (missing.length > 0) {
@@ -194,18 +193,15 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     if (!args.out || !args.history) throw new Error("--out と --history を指定してください。");
     const [owner, name] = (process.env.GITHUB_REPOSITORY || CATALOG.repo).split("/");
     const stats = await collect({
-      skills: boardSkills(),
+      skills: loadCatalog().skills,
       graphql: createGraphql(process.env.GITHUB_TOKEN),
       owner,
       name,
       category: args.category || process.env.BOARD_CATEGORY || DEFAULT_CATEGORY,
       log: (m) => console.log(m),
     });
-    const history = fs.existsSync(args.history) ? JSON.parse(fs.readFileSync(args.history, "utf8")) : null;
-    for (const [file, value] of [[args.out, stats], [args.history, recordHistory(history, stats, dayOf(new Date(stats.generatedAt)))]]) {
-      fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
-      fs.writeFileSync(file, JSON.stringify(value, null, 2) + "\n", "utf8");
-    }
+    writeJson(args.out, stats);
+    writeJson(args.history, recordHistory(readJsonIfExists(args.history), stats, dayOf(new Date(stats.generatedAt))));
     const total = Object.values(stats.skills).reduce((a, s) => a + s.up, 0);
     console.log(`集計しました: Skill ${Object.keys(stats.skills).length} 件、👍 合計 ${total}、ほしい Skill ${stats.requests ? `${stats.requests.items.length} 件` : `なし (カテゴリ "${REQUEST_CATEGORY}" がありません)`}`);
   } catch (e) {

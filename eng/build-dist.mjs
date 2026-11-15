@@ -5,15 +5,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  ROOT, CATALOG, COPILOT_NS, PLUGIN_SCHEMA_URL, SPEC_FIELDS, boardEnabled, boardSkillUrl, loadCatalog, writeJson,
+  ROOT, CATALOG, COPILOT_NS, PLUGIN_SCHEMA_URL, SPEC_FIELDS, boardEnabled, boardSkillUrl, listDirs, loadCatalog,
+  splitFrontmatter, writeJson, writeText as write,
 } from "./lib.mjs";
 import { generatedFiles, marketplaces, readPlugins, writeGenerated } from "./generate.mjs";
 import { validateCatalog } from "./validate.mjs";
-
-function write(file, text) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, text, "utf8");
-}
 
 /**
  * 配布用 plugin.json。Agent Plugins 1.0.0 のフィールドだけを残し、同梱宣言は取り除く。
@@ -42,15 +38,14 @@ function servedManifest(plugin, board) {
  * AI への指示である本文には触れない。frontmatter に metadata が既にある Skill は書き換えない。
  */
 export function withBoardLink(text, skill) {
-  const match = /^(\uFEFF?---\r?\n)([\s\S]*?)(\r?\n---(?:\r?\n|$))/.exec(text);
-  if (!match || /^metadata\s*:/m.test(match[2])) return text;
-  const eol = match[1].endsWith("\r\n") ? "\r\n" : "\n";
-  const added = `${eol}metadata:${eol}  feedback: ${boardSkillUrl(skill)}`;
-  return match[1] + match[2] + added + match[3] + text.slice(match[0].length);
+  const fm = splitFrontmatter(text);
+  if (!fm || /^metadata\s*:/m.test(fm.body)) return text;
+  const eol = fm.open.endsWith("\r\n") ? "\r\n" : "\n";
+  return `${fm.open}${fm.body}${eol}metadata:${eol}  feedback: ${boardSkillUrl(skill)}${fm.close}${fm.rest}`;
 }
 
 function addBoardLinks(skillsDir) {
-  for (const name of fs.existsSync(skillsDir) ? fs.readdirSync(skillsDir) : []) {
+  for (const name of listDirs(skillsDir)) {
     const file = path.join(skillsDir, name, "SKILL.md");
     if (fs.existsSync(file)) fs.writeFileSync(file, withBoardLink(fs.readFileSync(file, "utf8"), name), "utf8");
   }

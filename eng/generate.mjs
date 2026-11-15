@@ -9,7 +9,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ROOT, CATALOG, boardSkillUrl, loadCatalog, readComposition, readFrontmatter, readJson } from "./lib.mjs";
+import { ROOT, CATALOG, boardSkillUrl, loadCatalog, readComposition, readFrontmatter, readJson, writeText } from "./lib.mjs";
 
 export const README_START = "<!-- catalog:start (自動生成。手で編集しない) -->";
 export const README_END = "<!-- catalog:end -->";
@@ -99,11 +99,7 @@ export function generatedFiles(root, { board = false } = {}) {
 }
 
 export function writeGenerated(root) {
-  for (const [rel, content] of Object.entries(generatedFiles(root))) {
-    const file = path.join(root, rel);
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, content, "utf8");
-  }
+  for (const [rel, content] of Object.entries(generatedFiles(root))) writeText(path.join(root, rel), content);
 }
 
 /** 生成ファイルが最新でなければ、そのパスの一覧を返す。 */
