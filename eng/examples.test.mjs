@@ -69,7 +69,10 @@ test("書くのはカタログにあって実例の無い Skill だけで、書�
   assert.match(summary(results), /\| `x` \| y \| 作れなかった: no auth \|/);
 });
 
-test("Copilot CLI には、シェル・書き込み・記憶を禁じ、トークンを隠す引数を渡す", async () => {
+// 代役の CLI はシェルスクリプトなので、Windows では実行できない
+const noShell = process.platform === "win32" && "Windows には /bin/sh が無い";
+
+test("Copilot CLI には、シェル・書き込み・記憶を禁じ、トークンを隠す引数を渡す", { skip: noShell }, async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-"));
   const bin = path.join(dir, "copilot");
   fs.writeFileSync(bin, `#!/bin/sh\necho ${marker("doc")}\nprintf "%s\\n" "$@"\n`, { mode: 0o755 });

@@ -39,6 +39,18 @@ export function checkTargets(root = ROOT, only = null) {
     .filter((s) => s.phrases.length > 0 && (!only || s.name === only));
 }
 
+/**
+ * 確かめる対象が 0 件のときのメッセージ。--skill を指定していれば、その名前と、指定できる名前を出す。
+ * 名前の打ち間違いと、確かめられる頼み方が無い Skill を、実行ログから見分けられるようにする。
+ */
+export function missingTargetMessage(root = ROOT, only = null) {
+  if (!only) return "確かめる頼み方がありません。";
+  const available = checkTargets(root).map((s) => s.name);
+  const list = available.length > 0 ? `指定できるのは ${available.join(", ")} です。` : "指定できる Skill がありません。";
+  const exists = loadCatalog(root).skills.some((s) => s.name === only);
+  return `${only} ${exists ? "には確かめる頼み方がありません" : "という Skill はありません"}。${list}`;
+}
+
 /** 写しの SKILL.md。name と description は本物と同じ、本文は目印を出すだけ。 */
 export function stubSkill(name, description) {
   return `---
@@ -143,7 +155,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   try {
     if (!args.out) throw new Error("--out を指定してください。");
     const targets = checkTargets(ROOT, args.skill);
-    if (targets.length === 0) throw new Error("確かめる頼み方がありません。");
+    if (targets.length === 0) throw new Error(missingTargetMessage(ROOT, args.skill));
     const home = path.join(work, "home");
     const cwd = path.join(work, "cwd");
     fs.mkdirSync(cwd, { recursive: true });
