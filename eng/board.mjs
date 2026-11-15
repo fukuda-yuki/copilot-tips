@@ -3,6 +3,7 @@
 //  - Skill の一覧・説明・同梱プラグイン・作成者は skills/ と plugins/ から読む (新しい Skill は自動で載る)
 //  - 公開日と最終更新日は skills/<name>/ の git の履歴から読む (浅い clone では読まない)
 //  - 👍 と感想は board-collect.mjs が集計した stats.json から読む
+//  - 同じ内容を skills.json にも出す。エージェントが読む一覧で、skills/skill-board が使う
 //  - 出力は dist/board/ (正本には書かない)
 //
 // 使い方: node eng/board.mjs [--stats <stats.json>] [--out <dir>]
@@ -12,7 +13,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ROOT, CATALOG, loadCatalog, readFrontmatter } from "./lib.mjs";
+import { ROOT, CATALOG, boardSkillUrl, loadCatalog, readFrontmatter } from "./lib.mjs";
 import { readPlugins } from "./generate.mjs";
 
 const TIME_ZONE = "Asia/Tokyo";
@@ -133,8 +134,39 @@ export function boardRows(skills, stats) {
       commentCount: s?.commentCount ?? 0,
       comments: s?.comments ?? [],
       url: s?.url ?? null,
+      threadId: s?.id ?? null,
     };
   }).sort((a, b) => b.up - a.up || b.commentCount - a.commentCount || a.name.localeCompare(b.name));
+}
+
+/** エージェントが読む一覧のファイル名。skills/skill-board/SKILL.md がこの URL を読む (一致は board.test.mjs が確認)。 */
+export const DATA_FILE = "skills.json";
+
+/**
+ * エージェントが読む一覧。ページと同じ数字に、いいね・感想の送り先 (感想スレッドの id) と入れ方を付ける。
+ * 感想の本文と書いた人は入れない。他人が書いた文をエージェントに読ませないため。
+ */
+export function boardData(rows, { generatedAt }) {
+  const plain = (html) => html.replace(/<[^>]+>/g, "");
+  return {
+    generatedAt: generatedAt.toISOString(),
+    skills: rows.map((r) => ({
+      name: r.name,
+      description: r.description,
+      page: boardSkillUrl(r.name),
+      plugins: r.plugins.map((p) => ({ name: p, version: r.versions?.[p] ?? null })),
+      published: r.published ?? null,
+      updated: r.updated ?? null,
+      likes: r.up,
+      comments: r.commentCount,
+      thread: r.url && r.threadId ? { id: r.threadId, url: r.url } : null,
+      install: installGuides(r).map((g) => ({
+        tool: g.tool,
+        commands: g.blocks.map((b) => b.lines.join("\n")),
+        ...(g.note ? { note: plain(g.note) } : {}),
+      })),
+    })),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -489,6 +521,7 @@ export function renderBoard({ skills, stats, now = new Date(), showAuthors = tru
     "index.html": renderIndex(rows, { generatedAt }),
     "style.css": STYLE,
     "board.js": SCRIPT,
+    [DATA_FILE]: JSON.stringify(boardData(rows, { generatedAt }), null, 2) + "\n",
   };
   for (const row of rows) files[`skills/${row.name}/index.html`] = renderSkill(row, { generatedAt, showAuthors, groups });
   return files;

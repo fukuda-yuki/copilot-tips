@@ -113,9 +113,11 @@ Skill の一覧と、Skill ごとのいいね・感想・入れ方を GitHub Pag
 
 1. `eng/board-collect.mjs` が Discussions から、Skill ごとの感想スレッドの 👍 (最初の投稿へのリアクション) とコメントを集計する。スレッドの無い Skill には自動でスレッドを作るので、Skill を `main` に入れるだけでボードに載る
 2. その日の値を `board-data` ブランチの `history.json` に残す。リアクションには日時が無く、後から推移を出すにはこの記録が要るため (いまのページでは使っていない)。`board-data` は Actions だけが更新する
-3. `eng/board.mjs` が `skills/` と `plugins/` を読んで、一覧と Skill ごとのページを `dist/board/` に生成し、Pages に公開する。Skill の公開日と最終更新日は `skills/<name>/` の git の履歴 (`main` に入った日) から取り、公開・更新から `FRESH_DAYS` (14) 日のあいだ New / Updated の印を付ける。浅い clone では日付を出さない
+3. `eng/board.mjs` が `skills/` と `plugins/` を読んで、一覧と Skill ごとのページを `dist/board/` に生成し、Pages に公開する。同じ内容を、エージェントが読む `skills.json` にも出す。Skill の公開日と最終更新日は `skills/<name>/` の git の履歴 (`main` に入った日) から取り、公開・更新から `FRESH_DAYS` (14) 日のあいだ New / Updated の印を付ける。浅い clone では日付を出さない
 
 いいねと感想は GitHub の感想スレッドで受け付け、ページからはそこへリンクします。ページ内で送れるようにするには訪問者の GitHub トークンを発行する秘密鍵つきのサーバーか第三者の GitHub App が要るので、採っていません。外部のスクリプトを読み込まないことはテストが確かめます。
+
+代わりに、チャットの中から送れるようにしています。`skills/skill-board` が `skills.json` を読み、利用者自身の `gh` でいいね・感想を送ります。`skills.json` には感想スレッドの id と入れ方を載せ、感想の本文は載せません (他人が書いた文をエージェントに読ませないため)。`skills.json` の項目を変えたら `skills/skill-board/SKILL.md` の表も直します (ずれるとテストが失敗します)。
 
 Skill と感想スレッドの対応は、スレッド本文の先頭にある `<!-- copilot-tips-board skill: <skill-name> -->` で取ります。スレッドのタイトルやカテゴリを変えても対応は崩れません。この行は消さないでください。本文の文面 (`eng/board-collect.mjs` の `discussionBody`) は新しく作るスレッドにだけ使われます。Actions の権限では既存のスレッドを書き換えられないので、文面を変えたら既存のスレッドはメンテナーが手で直します。目印は誰でも書けるので、Actions かメンテナー (owner / member / collaborator) が立てたスレッドだけを採用します。作成者は、Skill を同梱するプラグインの `plugin.json` の `author` を出します。インストールのコマンドは README.md の「インストール」と同じもので、ずれるとテストが失敗します。
 
