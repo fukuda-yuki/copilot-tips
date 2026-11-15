@@ -11,6 +11,7 @@ on:
     paths:
       - "skills/**"
       - "plugins/**"
+      - "examples/**"
       - "eng/**"
       - ".github/workflows/board.yml"
   workflow_dispatch:

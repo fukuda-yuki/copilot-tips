@@ -54,7 +54,7 @@ npx skills add fukuda-yuki/copilot-tips --skill <skill-name>
 | --- | --- | --- |
 | [`doctor`](plugins/doctor) | Copilot に読ませている指示ファイルや Skill を点検するプラグイン。設定の健康診断 (copilot-doctor) と、古い書き方・矛盾を見つけるプロンプト監査 (prompt-audit) を同梱。 | skill: `copilot-doctor`<br>skill: `prompt-audit` |
 | [`imozuru`](plugins/imozuru) | 知らない分野を、用語・人・媒体から芋づる式にたどって原文を集め、抜き書きと詳細レポートにまとめるプラグイン。 | skill: `imozuru` |
-| [`skill-board`](plugins/skill-board) | copilot-tips の Skill ボードをチャットの中から使うプラグイン。合う Skill を探す、使った Skill にいいねや感想を送る、ほしい Skill を投稿する、新着を知る。 | skill: `skill-board` |
+| [`skill-board`](plugins/skill-board) | copilot-tips の Skill ボードをチャットの中から使うプラグイン。合う Skill を探す、使った Skill にいいねや感想を送る、ほしい Skill を投稿する、新着と更新を知る。 | skill: `skill-board` |
 | [`skill-creator`](plugins/skill-creator) | Agent Skill を新しく作る・既存の Skill を見直す・description を改善するための手引きをまとめたプラグイン。 | skill: `skill-creator` |
 
 ### Skill (5)
@@ -64,7 +64,7 @@ npx skills add fukuda-yuki/copilot-tips --skill <skill-name>
 | [`copilot-doctor`](skills/copilot-doctor) | GitHub Copilot のカスタマイズ一式 (custom instructions、AGENTS.md、prompt file、Skill、カスタムエージェント) の健康診断をする。読み込まれない・壊れているファイル、常に読み込まれて重い指示、重複や矛盾、コードから分かるだけの記述を見つけ、修正案を出して同意を得てから直す。「Copilot の設定を診断して」「doctor」「instructions を整理・軽量化したい」「Skill が呼ばれない」などの依頼で使う。 |
 | [`imozuru`](skills/imozuru) | 知らない分野にキャッチアップするとき、汎用的な言葉から界隈の用語・中心の人・媒体（学会・雑誌・個人ブログ・動画・リポジトリ・一覧）を特定し、引用・リンク・著者を芋づる式にたどって、目当ての原文（論文も個人の記事や動画の字幕も）を要約せずそのまま ~/research/{話題}/sources/ に保存する。周ごとに map.md（用語・人・媒体・原文の一覧）を書き足し、調査の論点の全部に原文が付くか飽和したら止める。見張りのモードでは、map.md の媒体（Qiita・Zenn のタグ、note、YouTube、ブログ、arXiv）の新着を RSS で引いて原文の冒頭つきで並べる。「芋づる式に調べて」「この分野をキャッチアップしたい」「界隈の用語と人から掘って」「論文とか先行研究を漁って」「既存の技術を真似したいから元ネタを探して」「上手い人のやり方を集めて」「原文で落として」「〇〇って研究あるの？原典ほしい」「全然わからないから流れを掘って」「どういう界隈でどう呼ばれてるか知りたい」「〇〇の新着見て」「今週の〇〇の記事まとめて」「キャッチアップ」「imozuru watch」、英語では dig into this field / find the canonical papers on X / literature dive / what is new in X this week の依頼で使う。答えが1つの事実の確認（年・有無だけ・仕様1つ → そのまま検索）、手元の PC の中の資料を探す、読んだ資料の要約や解説を書く、には使わない。 |
 | [`prompt-audit`](skills/prompt-audit) | プロンプト資産 (copilot-instructions.md、*.instructions.md、AGENTS.md、prompt file、Skill、カスタムエージェント、システムプロンプト、ツール説明) を監査し、古いモデル向けの書き方・現状と食い違う記述・ファイル間の矛盾を見つけて、根拠付きのレポートと修正案 (diff) を出す。「プロンプトを監査して」「instructions を見直して」「prompt audit」「カスタム指示が効かない・古い」などの依頼で使う。 |
-| [`skill-board`](skills/skill-board) | copilot-tips の Skill ボードをチャットの中から使う。やりたいことに合う Skill を探して入れ方を示す、使った Skill にいいね (👍) や感想を利用者の gh で送る、ほしい Skill の要望を投稿する、新着・更新された Skill を知らせる。「〜に使える Skill ある?」「copilot-tips の Skill を見せて」「この Skill にいいね」「imozuru に感想を送って」「こんな Skill がほしい」「Skill の新着は?」などの依頼で使う。 |
+| [`skill-board`](skills/skill-board) | copilot-tips の Skill ボードをチャットの中から使う。やりたいことに合う Skill を探して入れ方を示す、使った Skill にいいね (👍) や感想を利用者の gh で送る、作業中のリポジトリに合う Skill を勧める、ほしい Skill の要望を投稿する、新着と、入れてある Skill の更新を知らせる。「〜に使える Skill ある?」「このリポジトリに合う Skill ある?」「copilot-tips の Skill を見せて」「この Skill にいいね」「imozuru に感想を送って」「こんな Skill がほしい」「Skill の新着は?」「Skill の更新ある?」などの依頼で使う。 |
 | [`skill-creator`](skills/skill-creator) | GitHub Copilot の Agent Skill を新しく作る、既存の Skill を手直しする、呼ばれやすい description に直す、構成をレビューする、検証と評価を足す、繰り返した作業から Skill を切り出す。「Skill を作って」「この作業を Skill にして」「Skill が呼ばれないので description を直して」「この Skill をレビューして」、英語では create a skill / improve this skill's description / review this skill の依頼で使う。Skill そのものを作る・直すための Skill。 |
 
 <!-- catalog:end -->
@@ -75,7 +75,7 @@ npx skills add fukuda-yuki/copilot-tips --skill <skill-name>
 
 ほしい Skill は、同じページの「ほしい Skill を投稿」から送れます。ほかの人の要望には投票できます。
 
-`skill-board` プラグインを入れると、Copilot のチャットで「copilot-doctor にいいね」「合う Skill ある?」「こんな Skill がほしい」と頼んで、ブラウザを開かずに送る・探すができます。送信には `gh` (GitHub CLI) のサインインが必要です。
+`skill-board` プラグインを入れると、Copilot のチャットで「copilot-doctor にいいね」「このリポジトリに合う Skill ある?」「Skill の更新ある?」「こんな Skill がほしい」と頼んで、ブラウザを開かずに送る・探すができます。送信には `gh` (GitHub CLI) のサインインが必要です。
 
 いいねと感想は、Skill ごとに 1 つある GitHub Discussions の感想スレッドから 1 日 1 回集計しています。これは人気投票で、利用回数ではありません。Copilot CLI や Claude Code は Skill が何回使われたかを作者に知らせないので、利用回数は載せていません。
 

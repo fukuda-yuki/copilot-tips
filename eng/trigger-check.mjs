@@ -68,9 +68,10 @@ export function loadedSkills(output) {
 /**
  * Copilot CLI を 1 回実行して出力を返す。実行できなければ例外。
  * ツールの許可は与えない (--allow-all-tools を付けない)。写しは何もしないので要らず、頼み方の文を作業として実行させないため。
+ * extra は後ろに足す引数 (examples.mjs が使う)。
  */
-export function runCopilot(prompt, { home, cwd, bin = "copilot", timeout = TIMEOUT_MS } = {}) {
-  const args = ["-p", prompt, "-s", "--no-ask-user", "--no-custom-instructions", "--disable-builtin-mcps"];
+export function runCopilot(prompt, { home, cwd, bin = "copilot", timeout = TIMEOUT_MS, extra = [] } = {}) {
+  const args = ["-p", prompt, "-s", "--no-ask-user", "--no-custom-instructions", "--disable-builtin-mcps", ...extra];
   return new Promise((resolve, reject) => {
     execFile(bin, args, { cwd, timeout, maxBuffer: 8 * 1024 * 1024, env: { ...process.env, HOME: home, USERPROFILE: home, COPILOT_HOME: copilotHome(home) } }, (error, stdout, stderr) => {
       // 目印が出ていれば、終了コードが 0 でなくても結果として使う (許可の無いツールを呼ぼうとして止まる場合がある)

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { CATALOG, COMPOSITION_NS, PLUGIN_SCHEMA_URL, readFrontmatter, readJson } from "./lib.mjs";
+import { CATALOG, COMPOSITION_NS, EXAMPLE_MAX_LINES, PLUGIN_SCHEMA_URL, readFrontmatter, readJson } from "./lib.mjs";
 import { validateCatalog } from "./validate.mjs";
 import { README_END, README_START, writeGenerated } from "./generate.mjs";
 import { buildDist } from "./build-dist.mjs";
@@ -47,6 +47,18 @@ test("存在しない skill への参照はエラーになる", () => {
   const root = fixture();
   fs.rmSync(path.join(root, "skills/hello"), { recursive: true });
   assert.match(validateCatalog(root).errors.join("\n"), /skills\/hello が存在しません/);
+});
+
+test("実例は skills/ にある名前で、頼んだ言葉と本文があり、長すぎないものだけ通す", () => {
+  const root = fixture();
+  write(path.join(root, "examples/hello.md"), "---\nask: あいさつして\n---\nこんにちは\n");
+  assert.deepEqual(validateCatalog(root).errors, []);
+  write(path.join(root, "examples/nothing.md"), "---\nask: a\n---\nb\n");
+  write(path.join(root, "examples/hello.md"), "こんにちは\n");
+  assert.match(validateCatalog(root).errors.join("\n"), /examples\/hello\.md: frontmatter の ask[\s\S]*examples\/nothing\.md: ファイル名は/);
+  fs.rmSync(path.join(root, "examples/nothing.md"));
+  write(path.join(root, "examples/hello.md"), `---\nask: a\n---\n${"x\n".repeat(EXAMPLE_MAX_LINES + 1)}`);
+  assert.match(validateCatalog(root).errors.join("\n"), /行以内/);
 });
 
 test("SKILL.md の name がフォルダ名と違うとエラーになる", () => {
