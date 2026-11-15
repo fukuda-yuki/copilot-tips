@@ -164,7 +164,7 @@ Discussions の `Ideas` カテゴリ (`eng/board-collect.mjs` の `REQUEST_CATEG
 
 ### 頼み方の確認
 
-`eng/trigger-check.mjs` が、Skill の頼み方を 1 つずつ Copilot CLI に渡し、その Skill が呼ばれるかを確かめます。Actions の「Trigger check」を手動で実行します。まだ実際の Copilot CLI では動かしていません。初めて動かすときは、Skill を 1 つ指定して結果を確かめてください。
+`eng/trigger-check.mjs` が、Skill の頼み方を 1 つずつ Copilot CLI に渡し、その Skill が呼ばれるかを確かめます。Actions の「Trigger check」を手動で実行します。まだ実際の Copilot CLI では動かしていません。初めて動かすときは、Skill を 1 つ指定して結果を確かめてください。名前を間違えたときは、指定できる Skill の名前が実行ログに出ます。
 
 - 本物の Skill は動かしません。`name` と `description` だけを写し、本文を「目印を出して終える」に差し替えた写しを全 Skill ぶん置いて実行します。ツールの許可は与えません
 - 結果は `board-data` ブランチの `triggers.json` に残り、次の「Skill board」の実行から、呼ばれると確かめた頼み方が先に並びます。ページに出る違いは並び順だけです

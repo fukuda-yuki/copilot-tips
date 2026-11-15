@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { readFrontmatter } from "./lib.mjs";
 import { descriptionHash } from "./board.mjs";
-import { check, checkTargets, copilotHome, firedCount, loadedSkills, marker, mergeResults, runCopilot, stubSkill, summary, writeStubs } from "./trigger-check.mjs";
+import { check, checkTargets, copilotHome, firedCount, loadedSkills, marker, mergeResults, missingTargetMessage, runCopilot, stubSkill, summary, writeStubs } from "./trigger-check.mjs";
 
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "trigger-"));
@@ -23,6 +23,13 @@ test("確かめる対象は頼み方のある Skill だけで、語を埋めて�
   assert.deepEqual(targets.map((t) => [t.name, t.phrases]), [["doc", ["診断して", '"引用符" の入った: 頼み方']]]);
   assert.deepEqual(checkTargets(fixture(), "plain"), []);
   assert.ok(checkTargets().length > 0, "このリポジトリに確かめる頼み方がある");
+});
+
+test("--skill で確かめられないときは、指定した名前と、指定できる名前を挙げる", () => {
+  const root = fixture();
+  assert.equal(missingTargetMessage(root, "docer"), "docer という Skill はありません。指定できるのは doc です。");
+  assert.equal(missingTargetMessage(root, "plain"), "plain には確かめる頼み方がありません。指定できるのは doc です。");
+  assert.equal(missingTargetMessage(root), "確かめる頼み方がありません。", "指定が無いときは従来のメッセージのまま");
 });
 
 test("写しは name と description が本物と同じで、本文は目印を出すだけ", () => {
@@ -93,7 +100,10 @@ test("要約には、呼ばれなかった頼み方と代わりに呼ばれた S
   assert.match(summary({ skills: { doc: { phrases: { a: { fired: true, loaded: ["doc"] } } } } }, { ran: 1, failed: 0 }), /すべて呼ばれた。/);
 });
 
-test("Copilot CLI にはツールの許可を与えず、設定の置き場を写しに向ける", async () => {
+// 代役の CLI はシェルスクリプトなので、Windows では実行できない
+const noShell = process.platform === "win32" && "Windows には /bin/sh が無い";
+
+test("Copilot CLI にはツールの許可を与えず、設定の置き場を写しに向ける", { skip: noShell }, async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-"));
   const bin = path.join(dir, "copilot");
   fs.writeFileSync(bin, '#!/bin/sh\nprintf "%s\\n" "$HOME" "$COPILOT_HOME" "$@"\n', { mode: 0o755 });
