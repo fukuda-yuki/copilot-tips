@@ -101,6 +101,12 @@ skills/ agents/ instructions/                        単体取得用のコピー
 README.md AGENTS.md CLAUDE.md                        「配布専用・編集は main へ」の案内つき
 ```
 
+`BOARD_ENABLED` が `true` のときは、配布物の 3 か所に [Skill ボード](#skill-ボード) のページへのリンクを足します。Skill を使う人がボードに辿り着けるようにするためで、正本には入れません。ボードが動いていない間はリンク切れになるので足しません。
+
+- `README.md` の Skill の表に「評判」の列
+- 各 `SKILL.md` の frontmatter に `metadata.feedback`。AI への指示である本文と `name` / `description` は変えない。frontmatter に `metadata` を書いた Skill には足さない
+- `plugin.json` の `homepage`。Skill が 1 つならその Skill のページ、複数なら一覧。`homepage` を書いたプラグインは上書きしない
+
 ## Skill ボード
 
 Skill の一覧と、Skill ごとのいいね・感想・入れ方を GitHub Pages に公開するページです。サーバーは持たず、`.github/workflows/board.yml` が次の順に動きます。
@@ -130,3 +136,4 @@ Skill と感想スレッドの対応は、スレッド本文の先頭にある `
 1. Settings → General → Features で Discussions を有効にする
 2. Settings → Pages の Source を「GitHub Actions」にする
 3. 変数 `BOARD_ENABLED` を `true` にし、Actions の「Skill board」を手動で実行する (Run workflow)
+4. 配布物にボードへのリンクを入れるため、Actions の「Publish to marketplace」も手動で実行する

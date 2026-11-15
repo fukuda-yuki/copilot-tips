@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "doctor",
   "description": "Copilot に読ませている指示ファイルや Skill を点検するプラグイン。設定の健康診断 (copilot-doctor) と、古い書き方・矛盾を見つけるプロンプト監査 (prompt-audit) を同梱。",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "fukuda-yuki",
     "url": "https://github.com/fukuda-yuki"
