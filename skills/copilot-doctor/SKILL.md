@@ -1,6 +1,8 @@
 ---
 name: copilot-doctor
 description: GitHub Copilot のカスタマイズ一式 (custom instructions、AGENTS.md、prompt file、Skill、カスタムエージェント) の健康診断をする。読み込まれない・壊れているファイル、常に読み込まれて重い指示、重複や矛盾、コードから分かるだけの記述を見つけ、修正案を出して同意を得てから直す。「Copilot の設定を診断して」「doctor」「instructions を整理・軽量化したい」「Skill が呼ばれない」などの依頼で使う。
+metadata:
+  feedback: https://fukuda-yuki.github.io/copilot-tips/skills/copilot-doctor/
 ---
 
 # Copilot Doctor

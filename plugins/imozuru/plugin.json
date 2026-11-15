@@ -1,11 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "imozuru",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "知らない分野を、用語・人・媒体から芋づる式にたどって原文を集め、抜き書きと詳細レポートにまとめるプラグイン。",
   "author": {
     "name": "fukuda-yuki",
     "url": "https://github.com/fukuda-yuki"
   },
+  "homepage": "https://fukuda-yuki.github.io/copilot-tips/skills/imozuru/",
   "repository": "https://github.com/fukuda-yuki/copilot-tips"
 }

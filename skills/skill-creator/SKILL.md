@@ -2,6 +2,8 @@
 name: skill-creator
 description: Use this skill when the user wants to create a new GitHub Copilot agent skill, adapt an existing skill, improve a skill's trigger description, review a skill's structure, add validation and evaluation, or extract a reusable skill from repeated real-world work. This skill is for authoring and iterating on skills themselves.
 license: Adapted for GitHub Copilot environments
+metadata:
+  feedback: https://fukuda-yuki.github.io/copilot-tips/skills/skill-creator/
 ---
 
 # Skill Creator

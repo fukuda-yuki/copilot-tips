@@ -2,6 +2,8 @@
 name: prompt-audit
 description: プロンプト資産 (copilot-instructions.md、*.instructions.md、AGENTS.md、prompt file、Skill、カスタムエージェント、システムプロンプト、ツール説明) を監査し、古いモデル向けの書き方・現状と食い違う記述・ファイル間の矛盾を見つけて、根拠付きのレポートと修正案 (diff) を出す。「プロンプトを監査して」「instructions を見直して」「prompt audit」「カスタム指示が効かない・古い」などの依頼で使う。
 license: Apache-2.0 (LICENSE.txt を参照。anthropics/skills の claude-api Skill に含まれる prompt-audit を GitHub Copilot 向けに改変)
+metadata:
+  feedback: https://fukuda-yuki.github.io/copilot-tips/skills/prompt-audit/
 ---
 
 # Prompt Audit
