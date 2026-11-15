@@ -17,19 +17,19 @@
       "name": "imozuru",
       "source": "plugins/imozuru",
       "description": "知らない分野を、用語・人・媒体から芋づる式にたどって原文を集め、抜き書きと詳細レポートにまとめるプラグイン。",
-      "version": "0.1.1"
+      "version": "0.1.2"
     },
     {
       "name": "skill-board",
       "source": "plugins/skill-board",
-      "description": "copilot-tips の Skill ボードをチャットの中から使うプラグイン。合う Skill を探す、使った Skill にいいねや感想を送る、新着を知る。",
-      "version": "0.1.0"
+      "description": "copilot-tips の Skill ボードをチャットの中から使うプラグイン。合う Skill を探す、使った Skill にいいねや感想を送る、ほしい Skill を投稿する、新着を知る。",
+      "version": "0.2.0"
     },
     {
       "name": "skill-creator",
       "source": "plugins/skill-creator",
       "description": "Agent Skill を新しく作る・既存の Skill を見直す・description を改善するための手引きをまとめたプラグイン。",
-      "version": "0.1.1"
+      "version": "0.1.2"
     }
   ]
 }

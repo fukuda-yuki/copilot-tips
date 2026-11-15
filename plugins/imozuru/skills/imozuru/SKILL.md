@@ -2,6 +2,7 @@
 name: imozuru
 description: "知らない分野にキャッチアップするとき、汎用的な言葉から界隈の用語・中心の人・媒体（学会・雑誌・個人ブログ・動画・リポジトリ・一覧）を特定し、引用・リンク・著者を芋づる式にたどって、目当ての原文（論文も個人の記事や動画の字幕も）を要約せずそのまま ~/research/{話題}/sources/ に保存する。周ごとに map.md（用語・人・媒体・原文の一覧）を書き足し、調査の論点の全部に原文が付くか飽和したら止める。見張りのモードでは、map.md の媒体（Qiita・Zenn のタグ、note、YouTube、ブログ、arXiv）の新着を RSS で引いて原文の冒頭つきで並べる。「芋づる式に調べて」「この分野をキャッチアップしたい」「界隈の用語と人から掘って」「論文とか先行研究を漁って」「既存の技術を真似したいから元ネタを探して」「上手い人のやり方を集めて」「原文で落として」「〇〇って研究あるの？原典ほしい」「全然わからないから流れを掘って」「どういう界隈でどう呼ばれてるか知りたい」「〇〇の新着見て」「今週の〇〇の記事まとめて」「キャッチアップ」「imozuru watch」、英語では dig into this field / find the canonical papers on X / literature dive / what is new in X this week の依頼で使う。答えが1つの事実の確認（年・有無だけ・仕様1つ → そのまま検索）、手元の PC の中の資料を探す、読んだ資料の要約や解説を書く、には使わない。"
 license: MIT (LICENSE.txt を参照。MaryCache/imozuru を GitHub Copilot 向けに改変)
+compatibility: Python 3.10 以上
 metadata:
   feedback: https://fukuda-yuki.github.io/copilot-tips/skills/imozuru/
 ---
