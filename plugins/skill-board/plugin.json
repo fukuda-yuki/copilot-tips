@@ -1,0 +1,12 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "skill-board",
+  "version": "0.1.0",
+  "description": "copilot-tips の Skill ボードをチャットの中から使うプラグイン。合う Skill を探す、使った Skill にいいねや感想を送る、新着を知る。",
+  "author": {
+    "name": "fukuda-yuki",
+    "url": "https://github.com/fukuda-yuki"
+  },
+  "homepage": "https://fukuda-yuki.github.io/copilot-tips/skills/skill-board/",
+  "repository": "https://github.com/fukuda-yuki/copilot-tips"
+}
